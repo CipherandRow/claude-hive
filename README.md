@@ -253,8 +253,66 @@ Resume picks up exactly where it left off, with completed results preserved for 
 - **TTL is advisory.** Claude Code cannot hard-kill running agents. TTL expiry means late results are discarded, not that the agent is terminated.
 - **Shared API pipeline.** Agents are dispatched in parallel but share one API connection. This is a Claude Code platform constraint, not a Hive limitation.
 
+## Porting to Other Platforms
+
+Hive is built for Claude Code, but the algorithms are platform-agnostic. Here's how to port it:
+
+### What's Claude Code-specific (must replace)
+| Hive Feature | Claude Code API | What to replace with |
+|---|---|---|
+| Spawn agents | `Agent` tool with `prompt`, `model` params | Your platform's subprocess/agent spawn API |
+| Model selection | `model: "sonnet"` / `"opus"` / `"haiku"` | Equivalent model tiers (fast/smart/cheap) |
+| Worktree isolation | `isolation: "worktree"` on Agent tool | Git worktree CLI commands directly |
+| Background agents | `run_in_background: true` | Async task queue or shell backgrounding |
+
+### What's platform-agnostic (copy directly)
+- Pheromone evaporation formula and history scoring
+- Stigmergy (per-agent finding files, wave-boundary merge)
+- Adaptive mode detection (Lite/Standard/Full)
+- TCP-inspired velocity scaling
+- Semantic quorum and negation-aware overlap
+- Reasoning tree conflict resolution
+- Checkpoint/resume state machine
+- Cross-inhibition dampening formula
+- Reserve pool allocation and release conditions
+
+### OpenClaw
+
+OpenClaw supports agent spawning via `spawnAcpDirect()`:
+
+```typescript
+// Claude Code Agent tool equivalent in OpenClaw:
+import { spawnAcpDirect } from 'openclaw/plugin-sdk';
+
+const result = await spawnAcpDirect({
+  task: "Your agent prompt here",
+  label: "hive-agent-1",
+  mode: "run",
+  cwd: "/path/to/workspace",
+  streamTo: "parent",  // stream output back to orchestrator
+}, {
+  agentSessionKey: parentSession,
+  sandboxed: true,
+});
+```
+
+Key differences from Claude Code:
+- Use `spawnAcpDirect()` instead of the Agent tool
+- Use `streamTo: "parent"` + `startAcpSpawnParentStreamRelay()` for real-time output
+- Model selection goes in agent config (`resolveAgentConfig`), not per-spawn
+- Workspace inheritance via `spawnWorkspaceDir` parameter
+- No built-in worktree isolation (use git CLI directly)
+
+### Contributing a port
+
+If you port Hive to another platform, open a PR adding a `ports/` directory with your adapted skill file. Keep the same mechanism numbering so the test suite stays relevant.
+
 ## Credits
 
-Built by John Nowlan at [Cipher & Row](https://cipherandrow.com).
+Built by [Jack Nowlan](https://github.com/CipherandRow) at [Cipher & Row](https://cipherandrow.com).
 
 Research sources: Seeley (Cornell), Dorigo (ULB), Gordon (Stanford), Anthropic, AgentAuditor.
+
+## License
+
+MIT
