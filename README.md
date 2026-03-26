@@ -1,6 +1,6 @@
 # Hive: Bio-Inspired Swarm Orchestrator for Claude Code
 
-A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 173 algorithmic tests including adversarial, stress, and A/B comparisons.
+A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 175 algorithmic tests including adversarial, stress, and A/B comparisons.
 
 ## Quick Start
 
@@ -346,7 +346,7 @@ Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, tim
 
 ## Test Results
 
-173 algorithmic tests, all passing. Tests import from `src/hive-mechanisms.ts` (the reference implementation) and validate the math, thresholds, and decision logic that Hive instructs Claude to follow:
+175 algorithmic tests, all passing. Tests import from `src/hive-mechanisms.ts` (the reference implementation) and validate the math, thresholds, and decision logic that Hive instructs Claude to follow:
 
 | Category | Tests | What's Covered |
 |----------|-------|----------------|
@@ -401,7 +401,7 @@ The mechanisms come from peer-reviewed research:
 |------|---------|
 | `hive.md` | The skill. Copy to `~/.claude/commands/` |
 | `src/hive-mechanisms.ts` | Reference implementation of all algorithmic logic |
-| `tests/hive-mechanisms.spec.ts` | 173 tests importing from `src/` (requires vitest) |
+| `tests/hive-mechanisms.spec.ts` | 175 tests importing from `src/` (requires vitest) |
 
 ## Running Tests
 
@@ -447,15 +447,15 @@ Resume picks up exactly where it left off, with completed results preserved for 
 | **Context management** | Ceiling detection + emergency save | Not documented | Not documented | Not documented | Not documented |
 | **Observability** | Execution trace (--verbose) | Not documented | Not documented | Not documented | Not documented |
 | **Concurrency scaling** | TCP-inspired velocity (auto-tunes) | Fixed | Fixed | Fixed | Fixed |
-| **Real parallelism** | Yes (concurrent subprocesses, shared rate limits) | Yes (separate processes) | Yes (tmux) | Yes (separate sessions) | Yes (multi-provider) |
+| **Parallelism** | Concurrent (shared rate pool) | Separate processes | tmux (isolated) | Separate sessions | Multi-provider |
 | **Multi-provider** | Claude only | Claude + Codex | Claude + teams | Claude + Codex + Gemini + Aider | 8 providers |
-| **Test coverage** | 173 algorithmic tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
+| **Test coverage** | 175 algorithmic tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
 | **Dependencies** | Zero | Many | tmux | Go | Node + config |
 | **Community/adoption** | New | 26.8K stars | 12.4K stars | 6.6K stars | 2K stars |
 
 ### Where Hive leads
 
-**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 173 algorithmic tests and peer-reviewed research.
+**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 175 algorithmic tests and peer-reviewed research.
 
 **Zero setup cost.** Copy one markdown file. That's it. No binary to install, no server to run, no config file to write. Every other tool in this space requires installation steps.
 

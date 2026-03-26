@@ -367,30 +367,45 @@ describe('Mechanism 3: Reasoning Tree Conflicts', () => {
   const agentC = { result: 'same conclusion', confidence: 0.80, steps: ['parse input', 'check auth', 'found null check missing'] };
 
   it('identifies correct divergence step', () => {
-    const result = resolveConflict(agentA, agentB, 0.85);
+    const result = resolveConflict(agentA, agentB, 0.85, 'A');
     expect(result.divergenceStep).toBe(2);
   });
 
-  it('high challenger confidence resolves without Opus', () => {
-    const result = resolveConflict(agentA, agentB, 0.85);
+  it('high challenger confidence uses challenger verdict', () => {
+    // Challenger says B has stronger reasoning at divergence point
+    const result = resolveConflict(agentA, agentB, 0.85, 'B');
     expect(result.escalateToOpus).toBe(false);
-    expect(result.winner).toBe('A');
+    expect(result.winner).toBe('B'); // challenger verdict wins, not higher confidence
   });
 
-  it('low challenger confidence escalates to Opus', () => {
-    const result = resolveConflict(agentA, agentB, 0.55);
+  it('challenger can pick the lower-confidence agent', () => {
+    // A has 0.90, B has 0.75, but challenger says B's reasoning is better
+    const result = resolveConflict(agentA, agentB, 0.80, 'B');
+    expect(result.winner).toBe('B');
+    expect(result.escalateToOpus).toBe(false);
+  });
+
+  it('low challenger confidence ignores verdict and escalates to Opus', () => {
+    // Challenger says B, but confidence too low to trust
+    const result = resolveConflict(agentA, agentB, 0.55, 'B');
     expect(result.escalateToOpus).toBe(true);
-    expect(result.winner).toBe('A');
+    expect(result.winner).toBe('A'); // falls back to higher confidence
   });
 
   it('no divergence found defaults to step 0', () => {
-    const result = resolveConflict(agentA, agentC, 0.85);
+    const result = resolveConflict(agentA, agentC, 0.85, 'A');
     expect(result.divergenceStep).toBe(0);
   });
 
-  it('Opus escalation limited to 1 per conflict: boundary at exactly 0.7', () => {
-    const result = resolveConflict(agentA, agentB, 0.7);
+  it('Opus escalation boundary at exactly 0.7', () => {
+    const result = resolveConflict(agentA, agentB, 0.7, 'B');
     expect(result.escalateToOpus).toBe(true);
+    expect(result.winner).toBe('A'); // verdict ignored, falls back to confidence
+  });
+
+  it('default verdict uses higher confidence when not provided', () => {
+    const result = resolveConflict(agentA, agentB, 0.85);
+    expect(result.winner).toBe('A'); // default: higher confidence
   });
 });
 

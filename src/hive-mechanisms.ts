@@ -91,23 +91,33 @@ export function chainConfidence(agents: number[]): number {
 // ---- Mechanism 3: Reasoning Tree Conflicts ----
 
 /**
- * Resolves a conflict between two agents by comparing reasoning steps and confidence.
- * Implements Mechanism 3 (Reasoning Tree Conflicts): finds the divergence point,
- * picks the higher-confidence winner, and escalates to Opus when challenger
- * confidence is too low to decide autonomously.
+ * Resolves a conflict between two agents by finding the reasoning divergence point.
+ * Implements Mechanism 3 (Reasoning Tree Conflicts): the challenger evaluates
+ * both agents' reasoning at the divergence step and picks the winner based on
+ * which branch has stronger evidence. Escalates to Opus when challenger confidence
+ * is too low to decide (max 1 Opus escalation per conflict).
+ *
+ * @param challengerVerdict - 'A' or 'B', the challenger's assessment of who has
+ *   stronger reasoning at the divergence point. When challenger confidence is low,
+ *   this is ignored and the decision escalates to Opus.
  */
 export function resolveConflict(
   agentA: { result: string; confidence: number; steps: string[] },
   agentB: { result: string; confidence: number; steps: string[] },
-  challengerConfidence: number
+  challengerConfidence: number,
+  challengerVerdict: 'A' | 'B' = agentA.confidence >= agentB.confidence ? 'A' : 'B'
 ): { winner: 'A' | 'B'; escalateToOpus: boolean; divergenceStep: number } {
   const divergenceStep = agentA.steps.findIndex((s, i) => s !== agentB.steps[i]);
   const effectiveStep = divergenceStep === -1 ? 0 : divergenceStep;
 
   if (challengerConfidence <= 0.7) {
+    // Low challenger confidence: can't trust the verdict, escalate to Opus
+    // Fall back to higher-confidence agent as preliminary winner
     return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: true, divergenceStep: effectiveStep };
   }
-  return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: false, divergenceStep: effectiveStep };
+  // High challenger confidence: use the challenger's verdict about who has
+  // stronger reasoning at the divergence point
+  return { winner: challengerVerdict, escalateToOpus: false, divergenceStep: effectiveStep };
 }
 
 // ---- Mechanism 4: Stigmergy ----
