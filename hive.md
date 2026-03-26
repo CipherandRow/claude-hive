@@ -38,7 +38,9 @@ Special flags:
 
 ## Step 1: Mode Detection
 
-Count subtasks and auto-select the mode. This prevents bloat on simple tasks:
+Count subtasks and auto-select the mode. This prevents bloat on simple tasks.
+
+**Zero subtasks:** If the task cannot be decomposed into subtasks (e.g., a single question or trivial operation), skip the swarm entirely and answer directly. Log: `Mode: direct (0 subtasks, no swarm needed)`.
 
 | Subtasks | Mode | What Runs | What's Skipped |
 |----------|------|-----------|----------------|
@@ -60,6 +62,8 @@ ratio = agents_running_simultaneously / agents_launched
 
 Adjust remaining waves to match. This handles different plan tiers automatically.
 
+**Edge case:** If all wave 1 agents fail (ratio = 0), default to **limited** tier (max 2) and retry wave 1 at reduced concurrency before classifying.
+
 ## Step 3: Exclusion Check
 
 **Before planning tasks**, check for known blockers:
@@ -76,7 +80,8 @@ If `$ARGUMENTS` contains `--resume`:
 1. Search for checkpoints: `ls -t .hive/checkpoints/*.json 2>/dev/null | head -1` (also checks `~/.claude/hive-checkpoints/`)
 2. If checkpoint is >24 hours old, warn user
 3. Display: progress, remaining tasks, checkpoint reason
-4. Skip strategy/planning, jump to execution at the saved wave
+4. Re-run exclusion check (Step 3) before resuming. Services may have broken since the checkpoint was saved.
+5. Skip strategy/planning, jump to execution at the saved wave
 
 ## Step 5: Strategy
 
@@ -107,7 +112,7 @@ Display: `Strategy: fan-out-gather | 8 scouts -> 1 synthesizer | Protocol: conse
 
 1. Break task into independent, self-contained subtasks
 2. Group into waves (dependencies between waves, parallelism within)
-3. **Reserve Pool**: Hold back ~25% of concurrency as reserve for demand spikes
+3. **Reserve Pool**: Hold back ~25% of concurrency as reserve. Release reserve when: (a) all planned agents are queued and none are waiting, (b) a wave has 0 failures and velocity is above expected rate, or (c) the final wave needs extra capacity. Reserve is never released during error recovery.
 4. If >8 agents planned, confirm with user: "This will launch ~{N} agents. Proceed?"
 
 ## Step 7: Pre-Flight
@@ -121,6 +126,15 @@ Display: `Strategy: fan-out-gather | 8 scouts -> 1 synthesizer | Protocol: conse
 | > 85% | Emergency save, abort, tell user |
 
 Before starting, estimate total context cost for all waves. If >80%, reduce plan.
+
+### Confidence Scale (used everywhere)
+| Level | Value | Meaning |
+|-------|-------|---------|
+| HIGH | 0.93 | Strong evidence, no ambiguity |
+| MEDIUM | 0.85 | Reasonable confidence, minor gaps |
+| LOW | 0.70 | Uncertain, needs review |
+
+All confidence references in this document use this scale.
 
 ### Chain Confidence (pipelines only)
 ```
@@ -153,7 +167,7 @@ When agents write files (code, config, docs), they can conflict if running in pa
 - Always when `--isolate` flag is set
 - Never in Lite mode unless `--isolate` is set (overhead not worth it for 1-3 tasks)
 - Never for read-only tasks (research, audits, searches) unless `--isolate` is set
-- Read-only heuristic: task contains none of "fix", "refactor", "update", "create", "write", "modify", "add", "remove", "delete"
+- Read-only heuristic: task contains none of these as whole words (word-boundary match, not substring): "fix", "refactor", "update", "create", "write", "modify", "add", "remove", "delete". Example: "address" does NOT match "add".
 
 **How it works:**
 1. Before spawning each file-writing agent, use `isolation: "worktree"` on the Agent tool call
@@ -215,7 +229,7 @@ Verify:
 1. Does your output directly answer the task?
 2. Are all claims supported by evidence (not assumed)?
 3. Did you check the shared findings and avoid duplicating work?
-4. Rate confidence: HIGH (=0.93), MEDIUM (=0.85), LOW (=0.70)
+4. Rate confidence: HIGH / MEDIUM / LOW (see Confidence Scale in Step 7)
 
 Format:
 CONFIDENCE: [HIGH/MEDIUM/LOW]
@@ -259,7 +273,7 @@ Strategy: {strategy} | Protocol: {protocol} | Mode: {mode}
 
 ### Between Waves
 
-**1. Confidence check** -- Recompute chain confidence with actual results (HIGH=0.93, MEDIUM=0.85, LOW=0.70). Below 0.65 = re-run weakest agent with Opus.
+**1. Confidence check** -- Recompute chain confidence with actual results (see Confidence Scale in Step 7). Below 0.65 = re-run weakest agent with Opus (max 1 Opus retry per agent per run).
 
 **2. Spot-check** -- Scan for hallucination markers, contradictions between agents.
 
@@ -282,11 +296,16 @@ b. Spawn ONE Sonnet challenger:
     At that point, which branch has stronger evidence?
     Return: divergence_step, winner, confidence, reasoning."
 c. Confidence > 0.7: accept winner
-d. Confidence < 0.7: escalate to Opus
+d. Confidence < 0.7: escalate to Opus (max 1 Opus escalation per conflict; if Opus is also inconclusive, accept the higher-confidence original)
 ```
 Saves Opus calls ~70% of the time.
 
-**Cross-Inhibition:** Multiple proposals weighted by confidence. Lower confidence = dampened influence.
+**Cross-Inhibition:** When multiple agents propose competing solutions:
+```
+For each proposal:
+  weight = confidence * (1 - max_competing_confidence * 0.5)
+```
+Higher-confidence proposals dampen lower-confidence ones. If the top two proposals are within 0.05 confidence of each other, escalate to the Reasoning Tree conflict resolution (step 4 above) instead of dampening.
 
 **5. Semantic Quorum** -- When 3+ agents complete the same subtask:
 ```
@@ -297,12 +316,16 @@ Fallback (no Haiku): Enhanced word overlap with negation detection ("no damage" 
 
 **6. Velocity metrics** -- Log completions/min, scale action, confidence, budget remaining.
 
-**7. Backpressure** -- If shared board has >20 unread findings, throttle spawning and spawn a summarizer.
+**7. Backpressure** -- If shared board has >20 unread findings since the last summarization, throttle spawning and spawn a Haiku summarizer to condense findings before the next wave. Reset the counter after summarization.
+
+**8. Inspector Agents** (Full mode only) -- After a wave rejects a proposal (confidence < 0.65 or conflict loss), spawn one Haiku agent to re-check the rejected option against the new shared findings. If the inspector's confidence exceeds the original winner's by 0.1+, flag for re-evaluation. Max one inspector per rejected proposal per run.
+
+**9. Assembly Line QC** (pipeline strategies only) -- At each wave handoff in a `deep-pipeline` or `hybrid` strategy, the next-wave agents validate the previous wave's output format and completeness before starting their own work. If validation fails, the handoff agent returns immediately with `RESULT: HANDOFF_FAIL` and the orchestrator re-runs the previous stage.
 
 ### Error Handling
 
 - **429 / rate limit**: Save checkpoint, halve concurrency, 30s delay
-- **TTL expired**: Retry once with tighter prompt. Timeout again = skip.
+- **TTL expired**: Claude Code cannot hard-kill a running agent. TTL is enforced by the orchestrator ignoring late results: if an agent returns after its TTL, its output is discarded. The orchestrator retries the task once with a tighter prompt and shorter budget. Second timeout = skip and log.
 - **Agent error**: Log, mark failed, continue
 - **3+ consecutive failures**: Save checkpoint, pause, alert user
 - **Conflicts**: Reasoning tree pattern (above)
@@ -317,7 +340,7 @@ Fallback (no Haiku): Enhanced word overlap with negation detection ("no damage" 
 
 ## Step 10: Learn
 
-### 4a. Append to History
+### 10a. Append to History
 
 One JSON line to `~/.claude/hive-history.jsonl`:
 ```json
@@ -328,7 +351,7 @@ One JSON line to `~/.claude/hive-history.jsonl`:
 
 **Pruning:** Keep last 50 entries.
 
-### 4b. Update Playbook
+### 10b. Update Playbook
 
 Record effective approaches with time-decay: `relevance = confidence * (0.95 ^ days)`. Inject entries with relevance > 0.3 into future agent prompts. Keep under 30 entries.
 
