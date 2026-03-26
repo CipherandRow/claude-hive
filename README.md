@@ -546,7 +546,7 @@ If you port Hive to another platform, open a PR adding a `ports/` directory with
 
 ## Credits
 
-Built by [Jack Nowlan](https://github.com/CipherandRow) at [Cipher & Row](https://cipherandrow.com).
+Built by [John Nowlan](https://github.com/CipherandRow) at [Cipher & Row](https://cipherandrow.com).
 
 Research sources: Seeley (Cornell), Dorigo (ULB), Gordon (Stanford), Anthropic, AgentAuditor.
 
