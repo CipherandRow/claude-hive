@@ -1,4 +1,37 @@
 import { describe, it, expect } from 'vitest';
+import {
+  pheromoneScore,
+  semanticOverlap,
+  negationAwareOverlap,
+  parseConfidence,
+  chainConfidence,
+  computeVelocity,
+  ttl,
+  selectMode,
+  selectStrategy,
+  selectProtocol,
+  scoringFunction,
+  detectParallelismTier,
+  maxConcurrency,
+  reservePool,
+  contextAction,
+  shouldIsolate,
+  mergeDecision,
+  conflictWinner,
+  resolveConflict,
+  checkBackpressure,
+  crossInhibit,
+  shouldEscalateToReasoningTree,
+  createCheckpoint,
+  isCheckpointStale,
+  resumeFromCheckpoint,
+  isReadOnly,
+  shouldSkipSwarm,
+  detectTierWithFailures,
+  shouldReleaseReserve,
+  parseAgentOutput,
+  type Checkpoint,
+} from '../src/hive-mechanisms';
 
 // =============================================================================
 // Hive Mechanism Tests — 16 bio-inspired mechanisms
@@ -7,252 +40,6 @@ import { describe, it, expect } from 'vitest';
 // requiring actual Claude API calls. They test the decision-making math,
 // parsing, thresholds, and edge cases.
 // =============================================================================
-
-// ---- Helpers ----
-
-function pheromoneScore(score: number, daysSince: number, decayRate = 0.95): number {
-  return score * Math.pow(decayRate, daysSince);
-}
-
-function semanticOverlap(a: string, b: string): number {
-  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean));
-  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean));
-  const intersection = new Set([...wordsA].filter(x => wordsB.has(x)));
-  const union = new Set([...wordsA, ...wordsB]);
-  return union.size === 0 ? 0 : intersection.size / union.size;
-}
-
-function negationAwareOverlap(a: string, b: string): number {
-  const negations = ['no', 'not', 'never', 'none', 'neither', "don't", "doesn't", "didn't", "won't", "can't"];
-  const tokensA = a.toLowerCase().split(/\s+/);
-  const tokensB = b.toLowerCase().split(/\s+/);
-  const hasNegA = tokensA.some(t => negations.includes(t));
-  const hasNegB = tokensB.some(t => negations.includes(t));
-  if (hasNegA !== hasNegB) return 0;
-  return semanticOverlap(a, b);
-}
-
-function parseConfidence(label: string): number {
-  const map: Record<string, number> = { HIGH: 0.93, MEDIUM: 0.85, LOW: 0.70 };
-  return map[label.toUpperCase()] ?? 0.85;
-}
-
-function chainConfidence(agents: number[]): number {
-  return agents.reduce((acc, c) => acc * c, 1);
-}
-
-function computeVelocity(completed: number, elapsedMin: number): number {
-  return elapsedMin > 0 ? completed / elapsedMin : 0;
-}
-
-function ttl(historyAvg: number, complexity: 'simple' | 'medium' | 'complex'): number {
-  const multipliers = { simple: 1.0, medium: 1.5, complex: 2.0 };
-  const base = historyAvg > 0 ? historyAvg * 2.5 : 120;
-  return base * multipliers[complexity];
-}
-
-function selectMode(subtasks: number): 'lite' | 'standard' | 'full' {
-  if (subtasks <= 3) return 'lite';
-  if (subtasks <= 8) return 'standard';
-  return 'full';
-}
-
-function selectStrategy(taskType: string): string {
-  const map: Record<string, string> = {
-    independent: 'wide-parallel',
-    sequential: 'deep-pipeline',
-    research: 'fan-out-gather',
-    mixed: 'hybrid',
-    improvement: 'iterative',
-  };
-  return map[taskType] ?? 'wide-parallel';
-}
-
-function selectProtocol(taskType: string): string {
-  const map: Record<string, string> = {
-    reasoning: 'vote',
-    knowledge: 'consensus',
-    creative: 'aad',
-  };
-  return map[taskType] ?? 'consensus';
-}
-
-function scoringFunction(passed: number, total: number, opts: {
-  noThrottles?: boolean;
-  fast?: boolean;
-  efficientConflicts?: boolean;
-  quorumUsed?: boolean;
-  goodStigmergy?: boolean;
-} = {}): number {
-  let score = (passed / total) * 6;
-  if (opts.noThrottles) score += 1.5;
-  if (opts.fast) score += 1;
-  if (opts.efficientConflicts) score += 0.5;
-  if (opts.quorumUsed) score += 0.5;
-  if (opts.goodStigmergy) score += 0.5;
-  return Math.min(score, 10);
-}
-
-function detectParallelismTier(ratio: number): 'limited' | 'standard' | 'max' {
-  if (ratio < 0.3) return 'limited';
-  if (ratio <= 0.6) return 'standard';
-  return 'max';
-}
-
-function maxConcurrency(tier: 'limited' | 'standard' | 'max'): number {
-  return { limited: 2, standard: 5, max: 15 }[tier];
-}
-
-function reservePool(concurrency: number): number {
-  return Math.floor(concurrency * 0.25);
-}
-
-function contextAction(usedPercent: number): string {
-  if (usedPercent < 50) return 'full';
-  if (usedPercent < 70) return 'save-reduce';
-  if (usedPercent < 85) return 'priority-only';
-  return 'emergency-abort';
-}
-
-// ---- NEW: Worktree Isolation helpers ----
-
-function shouldIsolate(mode: 'lite' | 'standard' | 'full', writesFiles: boolean, forceIsolate: boolean): boolean {
-  if (forceIsolate) return true;
-  if (mode === 'lite') return false;
-  return writesFiles;
-}
-
-function mergeDecision(confidence: number): 'auto-merge' | 'manual-review' {
-  return confidence >= 0.85 ? 'auto-merge' : 'manual-review';
-}
-
-function conflictWinner(agents: { id: string; confidence: number; completedAt: number }[]): string {
-  const sorted = [...agents].sort((a, b) => {
-    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
-    return a.completedAt - b.completedAt;
-  });
-  return sorted[0].id;
-}
-
-// ---- Reasoning Tree Conflict helpers ----
-
-function resolveConflict(
-  agentA: { result: string; confidence: number; steps: string[] },
-  agentB: { result: string; confidence: number; steps: string[] },
-  challengerConfidence: number
-): { winner: 'A' | 'B'; escalateToOpus: boolean; divergenceStep: number } {
-  // Find first step where reasoning diverges
-  const divergenceStep = agentA.steps.findIndex((s, i) => s !== agentB.steps[i]);
-  const effectiveStep = divergenceStep === -1 ? 0 : divergenceStep;
-
-  if (challengerConfidence <= 0.7) {
-    return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: true, divergenceStep: effectiveStep };
-  }
-  // Higher confidence at divergence point wins
-  return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: false, divergenceStep: effectiveStep };
-}
-
-// ---- Stigmergy backpressure helpers ----
-
-function checkBackpressure(findingsSinceLastSummary: number): { shouldThrottle: boolean; shouldSummarize: boolean } {
-  return {
-    shouldThrottle: findingsSinceLastSummary > 20,
-    shouldSummarize: findingsSinceLastSummary > 20,
-  };
-}
-
-// ---- Cross-Inhibition helpers ----
-
-function crossInhibit(proposals: { confidence: number; proposal: string }[]): { proposal: string; weight: number }[] {
-  const maxConf = Math.max(...proposals.map(p => p.confidence));
-  return proposals.map(p => ({
-    proposal: p.proposal,
-    weight: p.confidence * (1 - maxConf * 0.5),
-  })).sort((a, b) => b.weight - a.weight);
-}
-
-function shouldEscalateToReasoningTree(proposals: { confidence: number }[]): boolean {
-  if (proposals.length < 2) return false;
-  const sorted = [...proposals].sort((a, b) => b.confidence - a.confidence);
-  return Math.abs(sorted[0].confidence - sorted[1].confidence) <= 0.05;
-}
-
-// ---- Checkpoint/Resume helpers ----
-
-interface Checkpoint {
-  task: string;
-  wave: number;
-  completedResults: { taskId: string; result: string; confidence: number }[];
-  remainingTasks: string[];
-  concurrency: number;
-  timestamp: number;
-}
-
-function createCheckpoint(data: Omit<Checkpoint, 'timestamp'>): Checkpoint {
-  return { ...data, timestamp: Date.now() };
-}
-
-function isCheckpointStale(checkpoint: Checkpoint, maxAgeHours = 24): boolean {
-  return (Date.now() - checkpoint.timestamp) > maxAgeHours * 60 * 60 * 1000;
-}
-
-function resumeFromCheckpoint(checkpoint: Checkpoint): { startWave: number; skipTasks: string[]; concurrency: number } {
-  return {
-    startWave: checkpoint.wave + 1,
-    skipTasks: checkpoint.completedResults.map(r => r.taskId),
-    concurrency: checkpoint.concurrency,
-  };
-}
-
-// ---- Read-only heuristic helpers ----
-
-function isReadOnly(taskDescription: string): boolean {
-  const writeKeywords = ['fix', 'refactor', 'update', 'create', 'write', 'modify', 'add', 'remove', 'delete'];
-  return !writeKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(taskDescription));
-}
-
-// ---- Zero subtask guard ----
-
-function shouldSkipSwarm(subtaskCount: number): boolean {
-  return subtaskCount === 0;
-}
-
-// ---- Parallelism tier with failures ----
-
-function detectTierWithFailures(ratio: number, allFailed: boolean): 'limited' | 'standard' | 'max' {
-  if (allFailed) return 'limited';
-  return detectParallelismTier(ratio);
-}
-
-// ---- Reserve pool release conditions ----
-
-function shouldReleaseReserve(opts: { allQueued: boolean; noneWaiting: boolean; zeroFailures: boolean; velocityAboveExpected: boolean; isFinalWave: boolean; inErrorRecovery: boolean }): boolean {
-  if (opts.inErrorRecovery) return false;
-  if (opts.isFinalWave) return true;
-  if (opts.allQueued && opts.noneWaiting) return true;
-  if (opts.zeroFailures && opts.velocityAboveExpected) return true;
-  return false;
-}
-
-// ---- Parse agent output ----
-
-function parseAgentOutput(raw: string): {
-  confidence: number;
-  findings: string;
-  result: string;
-} | null {
-  const confMatch = raw.match(/CONFIDENCE:\s*(HIGH|MEDIUM|LOW)/i);
-  const findMatch = raw.match(/FINDINGS:\s*(.+)/i);
-  const resMatch = raw.match(/RESULT:\s*([\s\S]+?)(?:\n##|\nCONFIDENCE|\nFINDINGS|$)/i);
-
-  if (!resMatch) return null;
-
-  return {
-    confidence: confMatch ? parseConfidence(confMatch[1]) : 0.85,
-    findings: findMatch ? findMatch[1].trim() : '',
-    result: resMatch[1].trim(),
-  };
-}
 
 // =============================================================================
 // MECHANISM 1: Pheromone Evaporation

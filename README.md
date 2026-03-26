@@ -4,14 +4,26 @@ A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms f
 
 ## Quick Start
 
+**Install (one command):**
 ```bash
-# Copy the skill to your Claude Code commands
 cp hive.md ~/.claude/commands/hive.md
+```
 
-# Use it
+**Use it:**
+```bash
 /hive research the top 5 competitors in my market
 /hive run QA on all test files in this repo
 /hive fix all TypeScript errors in src/
+```
+
+**Preview before running:**
+```bash
+/hive --dry-run fix all TypeScript errors in src/
+```
+
+**See what's happening under the hood:**
+```bash
+/hive --verbose fix all TypeScript errors in src/
 ```
 
 That's it. One file, no dependencies, no server, no setup.
@@ -124,7 +136,7 @@ Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, tim
 
 ## Test Results
 
-148 algorithmic logic tests, all passing. These validate the math, thresholds, and decision logic that Hive instructs Claude to follow. They are not end-to-end integration tests (those require live Claude sessions):
+148 algorithmic tests, all passing. Tests import from `src/hive-mechanisms.ts` (the reference implementation) and validate the math, thresholds, and decision logic that Hive instructs Claude to follow:
 
 | Category | Tests | What's Covered |
 |----------|-------|----------------|
@@ -167,7 +179,7 @@ The mechanisms come from peer-reviewed research:
 
 ## Requirements
 
-- Claude Code (any plan with agent support)
+- [Claude Code](https://claude.ai/code) (any plan with agent support)
 - No external dependencies
 - No server required
 - Works on macOS, Linux, and Windows
@@ -177,7 +189,17 @@ The mechanisms come from peer-reviewed research:
 | File | Purpose |
 |------|---------|
 | `hive.md` | The skill. Copy to `~/.claude/commands/` |
-| `tests/hive-mechanisms.spec.ts` | 148 algorithmic tests (requires vitest) |
+| `src/hive-mechanisms.ts` | Reference implementation of all algorithmic logic |
+| `tests/hive-mechanisms.spec.ts` | 148 tests importing from `src/` (requires vitest) |
+
+## Running Tests
+
+```bash
+git clone https://github.com/CipherandRow/claude-hive.git
+cd claude-hive
+npm install
+npx vitest run
+```
 
 ## How It Learns
 
@@ -202,7 +224,7 @@ Resume picks up exactly where it left off, with completed results preserved for 
 
 ## How Hive Compares
 
-| Feature | Hive | Ruflo (26K stars) | oh-my-claudecode (12K) | Claude Squad (6.6K) | Claude Octopus (2K) |
+| Feature | Hive | [Ruflo](https://github.com/ruvnet/ruflo) (26.9K) | [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) (12.5K) | [Claude Squad](https://github.com/smtg-ai/claude-squad) (6.6K) | [Claude Octopus](https://github.com/nyldn/claude-octopus) (2.1K) |
 |---------|------|------|------|------|------|
 | **Setup** | 1 file, 0 deps | Large codebase + install | tmux + config | Go binary + install | Config + 8 providers |
 | **Conflict resolution** | Reasoning tree (finds exact divergence point) | Basic merge | None | None | Majority vote |
