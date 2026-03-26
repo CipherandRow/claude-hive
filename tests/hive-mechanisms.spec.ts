@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   pheromoneScore,
+  pheromoneScoreAdaptive,
+  pheromoneScoreWithFloor,
+  pheromoneScorePinned,
+  shouldAutoPin,
+  shouldAutoUnpin,
   semanticOverlap,
   negationAwareOverlap,
   parseConfidence,
@@ -107,6 +112,221 @@ describe('Mechanism 1: Pheromone Evaporation', () => {
 
     // Pheromone should pick better strategies at least 80% as often (accounts for randomness)
     expect(pheromoneWins).toBeGreaterThanOrEqual(recencyWins * 0.8);
+  });
+});
+
+// =============================================================================
+// MECHANISM 1b: Pheromone Decay Variants — Comparison Tests
+// =============================================================================
+
+describe('Pheromone Decay Variants', () => {
+  // Scenario: A genuinely great strategy (9/10) discovered 30 days ago
+  // vs a mediocre strategy (5/10) discovered yesterday
+  const greatOld = { score: 9, days: 30 };
+  const mediocreFresh = { score: 5, days: 1 };
+
+  describe('Variant A: Adaptive Decay (slow decay for high scores)', () => {
+    it('great old strategy retains more value than standard decay', () => {
+      const standard = pheromoneScore(greatOld.score, greatOld.days);
+      const adaptive = pheromoneScoreAdaptive(greatOld.score, greatOld.days);
+      // 0.98^30 = 0.545 vs 0.95^30 = 0.215
+      expect(adaptive).toBeGreaterThan(standard);
+      expect(adaptive).toBeCloseTo(9 * Math.pow(0.98, 30), 1); // ~4.9
+    });
+
+    it('mediocre strategies still decay at normal rate', () => {
+      const standard = pheromoneScore(mediocreFresh.score, mediocreFresh.days);
+      const adaptive = pheromoneScoreAdaptive(mediocreFresh.score, mediocreFresh.days);
+      // Score 5 < 8.0 threshold, so same decay rate
+      expect(adaptive).toBeCloseTo(standard, 2);
+    });
+
+    it('threshold at 8.0 creates a meaningful split', () => {
+      const below = pheromoneScoreAdaptive(7.9, 30); // normal decay
+      const above = pheromoneScoreAdaptive(8.0, 30); // slow decay
+      expect(above).toBeGreaterThan(below * 1.5); // significant advantage
+    });
+  });
+
+  describe('Variant B: Floor (minimum relevance)', () => {
+    it('old great strategy never drops below floor', () => {
+      const floored = pheromoneScoreWithFloor(greatOld.score, greatOld.days);
+      const floor = 9 * 0.2; // 1.8
+      // At 30 days, decay (1.93) is still above floor (1.8), so decay wins
+      expect(floored).toBeGreaterThanOrEqual(floor);
+    });
+
+    it('very old entry hits the floor', () => {
+      const floored = pheromoneScoreWithFloor(9, 200); // decay would be ~0.0003
+      expect(floored).toBe(9 * 0.2); // floor catches it at 1.8
+    });
+
+    it('recent entries are unaffected by floor', () => {
+      const standard = pheromoneScore(9, 1);
+      const floored = pheromoneScoreWithFloor(9, 1);
+      expect(floored).toBeCloseTo(standard, 2); // decay hasn't hit floor yet
+    });
+
+    it('custom floor works', () => {
+      const low = pheromoneScoreWithFloor(10, 200, 0.95, 0.1); // floor at 10%
+      expect(low).toBe(1.0);
+    });
+  });
+
+  describe('Variant C: Pinned entries', () => {
+    it('pinned entry never decays', () => {
+      expect(pheromoneScorePinned(9, 365, true)).toBe(9);
+    });
+
+    it('unpinned entry decays normally', () => {
+      expect(pheromoneScorePinned(9, 30, false)).toBeCloseTo(pheromoneScore(9, 30), 2);
+    });
+  });
+
+  describe('Auto-Pin (3 consecutive runs at 8.0+)', () => {
+    it('pins after 3 consecutive high scores', () => {
+      expect(shouldAutoPin([8.5, 9.0, 8.2])).toBe(true);
+    });
+
+    it('does not pin with only 2 high scores', () => {
+      expect(shouldAutoPin([9.0, 8.5])).toBe(false);
+    });
+
+    it('does not pin if streak is broken', () => {
+      expect(shouldAutoPin([9.0, 7.5, 8.5])).toBe(false);
+    });
+
+    it('only looks at the last 3 scores', () => {
+      expect(shouldAutoPin([5.0, 3.0, 8.5, 9.0, 8.2])).toBe(true);
+    });
+
+    it('exactly 8.0 qualifies', () => {
+      expect(shouldAutoPin([8.0, 8.0, 8.0])).toBe(true);
+    });
+
+    it('empty history does not pin', () => {
+      expect(shouldAutoPin([])).toBe(false);
+    });
+  });
+
+  describe('Auto-Unpin (2 consecutive runs below 6.0)', () => {
+    it('unpins after 2 consecutive failures', () => {
+      expect(shouldAutoUnpin([5.0, 4.5])).toBe(true);
+    });
+
+    it('does not unpin with only 1 failure', () => {
+      expect(shouldAutoUnpin([4.5])).toBe(false);
+    });
+
+    it('does not unpin if second run recovers', () => {
+      expect(shouldAutoUnpin([4.0, 7.0])).toBe(false);
+    });
+
+    it('only looks at the last 2 scores', () => {
+      expect(shouldAutoUnpin([9.0, 8.0, 5.0, 4.5])).toBe(true);
+    });
+
+    it('exactly 6.0 does NOT trigger unpin (must be below)', () => {
+      expect(shouldAutoUnpin([6.0, 5.9])).toBe(false);
+    });
+
+    it('empty history does not unpin', () => {
+      expect(shouldAutoUnpin([])).toBe(false);
+    });
+
+    it('full lifecycle: pin then unpin when degraded', () => {
+      const scores = [8.5, 9.0, 8.2]; // → auto-pin
+      expect(shouldAutoPin(scores)).toBe(true);
+
+      scores.push(5.5, 4.0); // → degraded
+      expect(shouldAutoUnpin(scores)).toBe(true);
+    });
+  });
+
+  describe('Monte Carlo: Which variant picks the best strategies?', () => {
+    it('compares all variants across 200 random histories', () => {
+      const results = { standard: 0, adaptive: 0, floor: 0, pinned: 0 };
+
+      for (let trial = 0; trial < 200; trial++) {
+        // Generate history with a mix of great old and mediocre recent entries
+        const history = Array.from({ length: 30 }, (_, i) => ({
+          score: 1 + Math.random() * 9,
+          days: Math.floor(Math.random() * 60),
+          pinned: false, // only pin the genuinely great ones
+        }));
+
+        // Inject one genuinely great strategy from 20+ days ago
+        history.push({ score: 8.5 + Math.random() * 1.5, days: 20 + Math.floor(Math.random() * 20), pinned: true });
+
+        // Each variant picks the highest-weighted entry
+        const pick = (fn: (h: typeof history[0]) => number) =>
+          history.reduce((best, h) => fn(h) > fn(best) ? h : best, history[0]);
+
+        const standardPick = pick(h => pheromoneScore(h.score, h.days));
+        const adaptivePick = pick(h => pheromoneScoreAdaptive(h.score, h.days));
+        const floorPick = pick(h => pheromoneScoreWithFloor(h.score, h.days));
+        const pinnedPick = pick(h => pheromoneScorePinned(h.score, h.days, h.pinned));
+
+        // Track which variant picked the highest raw score
+        const picks = [
+          { name: 'standard', score: standardPick.score },
+          { name: 'adaptive', score: adaptivePick.score },
+          { name: 'floor', score: floorPick.score },
+          { name: 'pinned', score: pinnedPick.score },
+        ];
+        const best = picks.reduce((a, b) => a.score >= b.score ? a : b);
+        results[best.name as keyof typeof results]++;
+      }
+
+      // Log results for visibility
+      console.log('Decay variant comparison (200 trials):');
+      console.log(`  Standard: ${results.standard} wins`);
+      console.log(`  Adaptive: ${results.adaptive} wins`);
+      console.log(`  Floor:    ${results.floor} wins`);
+      console.log(`  Pinned:   ${results.pinned} wins`);
+
+      // Key finding: Pinned dominates when genuinely great strategies exist
+      // Adaptive does NOT outperform standard in random histories (the 0.98 rate
+      // keeps ALL high scores alive, not just the great ones, diluting the signal)
+      expect(results.pinned).toBeGreaterThan(results.standard);
+      expect(results.pinned).toBeGreaterThan(results.adaptive);
+
+      // Floor never wins because it preserves bad old entries too
+      expect(results.floor).toBeLessThanOrEqual(results.standard);
+    });
+
+    it('adaptive decay recovers from a bad recent run better than floor', () => {
+      // Scenario: great historical strategy (9/10, 15 days ago)
+      // followed by a terrible run (2/10, yesterday)
+      const history = [
+        { score: 9, days: 15 },
+        { score: 2, days: 1 },
+      ];
+
+      const standardBest = history.reduce((a, b) =>
+        pheromoneScore(a.score, a.days) > pheromoneScore(b.score, b.days) ? a : b);
+      const adaptiveBest = history.reduce((a, b) =>
+        pheromoneScoreAdaptive(a.score, a.days) > pheromoneScoreAdaptive(b.score, b.days) ? a : b);
+
+      // Standard: 9 * 0.95^15 = 4.13 vs 2 * 0.95^1 = 1.9 → picks 9
+      // Adaptive: 9 * 0.98^15 = 6.63 vs 2 * 0.95^1 = 1.9 → picks 9 (with MORE confidence)
+      expect(standardBest.score).toBe(9);
+      expect(adaptiveBest.score).toBe(9);
+
+      // Adaptive has a wider margin (more decisive)
+      const standardMargin = pheromoneScore(9, 15) - pheromoneScore(2, 1);
+      const adaptiveMargin = pheromoneScoreAdaptive(9, 15) - pheromoneScoreAdaptive(2, 1);
+      expect(adaptiveMargin).toBeGreaterThan(standardMargin);
+    });
+
+    it('floor prevents losing timeless strategies but over-weights bad old ones', () => {
+      // The downside: a bad old strategy (3/10, 60 days ago) stays at floor
+      const badOld = pheromoneScoreWithFloor(3, 60); // floor: 3 * 0.2 = 0.6
+      const standardBadOld = pheromoneScore(3, 60);   // ~0.14
+
+      // Floor keeps bad old entries alive 4x longer than they deserve
+      expect(badOld).toBeGreaterThan(standardBadOld * 3);
+    });
   });
 });
 

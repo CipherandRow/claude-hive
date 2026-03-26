@@ -20,6 +20,53 @@ export function pheromoneScore(score: number, daysSince: number, decayRate = 0.9
   return score * Math.pow(decayRate, daysSince);
 }
 
+/**
+ * Variant A: Adaptive decay - high scores (>=8.0) decay slower (0.98/day),
+ * low scores decay at normal rate (0.95/day). Great strategies persist longer.
+ */
+export function pheromoneScoreAdaptive(score: number, daysSince: number): number {
+  const rate = score >= 8.0 ? 0.98 : 0.95;
+  return score * Math.pow(rate, daysSince);
+}
+
+/**
+ * Variant B: Floor decay - standard decay but with a minimum relevance floor.
+ * No entry drops below floor * original score, regardless of age.
+ */
+export function pheromoneScoreWithFloor(score: number, daysSince: number, decayRate = 0.95, floor = 0.2): number {
+  const decayed = score * Math.pow(decayRate, daysSince);
+  return Math.max(decayed, score * floor);
+}
+
+/**
+ * Variant C: Pinned entries bypass decay entirely.
+ * Used for strategies proven to be universally effective.
+ */
+export function pheromoneScorePinned(score: number, daysSince: number, pinned: boolean, decayRate = 0.95): number {
+  if (pinned) return score;
+  return score * Math.pow(decayRate, daysSince);
+}
+
+/**
+ * Auto-pin: determines if a strategy should be automatically pinned
+ * based on consecutive high scores (3+ runs at 8.0+).
+ */
+export function shouldAutoPin(recentScores: number[], threshold = 8.0, requiredStreak = 3): boolean {
+  if (recentScores.length < requiredStreak) return false;
+  const latest = recentScores.slice(-requiredStreak);
+  return latest.every(s => s >= threshold);
+}
+
+/**
+ * Auto-unpin: determines if a pinned strategy should be released
+ * based on consecutive failures (2+ runs below 6.0).
+ */
+export function shouldAutoUnpin(recentScores: number[], threshold = 6.0, requiredStreak = 2): boolean {
+  if (recentScores.length < requiredStreak) return false;
+  const latest = recentScores.slice(-requiredStreak);
+  return latest.every(s => s < threshold);
+}
+
 // ---- Mechanism 2: Self-Validation Gates ----
 
 /**

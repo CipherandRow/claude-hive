@@ -378,6 +378,15 @@ One JSON line to `~/.claude/hive-history.jsonl`:
 
 Record effective approaches with time-decay: `relevance = confidence * (0.95 ^ days)`. Inject entries with relevance > 0.3 into future agent prompts. Keep under 30 entries.
 
+**Auto-Pin:** If a strategy scores 8.0+ on 3 consecutive runs, pin it. Pinned entries bypass decay entirely and are always injected into future agent prompts. This preserves genuinely great strategies that would otherwise fade.
+
+**Auto-Unpin:** If a pinned strategy scores below 6.0 on 2 consecutive runs, unpin it automatically. This prevents stale pins from polluting the playbook when conditions change (new codebase, different task types, etc.).
+
+Playbook entry format:
+```json
+{"strategy":"wide-parallel","task_type":"qa","score_history":[8.5,9.0,8.2],"pinned":true,"pinned_at":"ISO"}
+```
+
 ## Guidelines
 
 - Launch agents in a SINGLE message for true parallelism
