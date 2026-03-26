@@ -1,6 +1,6 @@
 # Hive: Bio-Inspired Swarm Orchestrator for Claude Code
 
-A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 175 algorithmic tests including adversarial, stress, and A/B comparisons.
+A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 241 tests including adversarial, stress, and A/B comparisons.
 
 ## Quick Start
 
@@ -346,22 +346,25 @@ Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, tim
 
 ## Test Results
 
-175 algorithmic tests, all passing. Tests import from `src/hive-mechanisms.ts` (the reference implementation) and validate the math, thresholds, and decision logic that Hive instructs Claude to follow:
+241 tests across 2 test files, all passing:
 
-| Category | Tests | What's Covered |
-|----------|-------|----------------|
-| Core mechanisms | 68 | Pheromone decay, quorum, velocity, TTL, scoring, reserve pool, mode detection |
-| Worktree isolation | 22 | Activation rules, merge decisions, conflict resolution, integration |
-| Stress/adversarial | 14 | 1000-entry pheromone, NaN, empty arrays, 100-agent conflicts, Unicode |
-| Negation-aware overlap | 5 | "no damage found" vs "damage found" treated as DIFFERENT |
-| Output parsing | 7 | Missing fields, unformatted output, empty responses, multiline |
-| Checkpoint/Resume | 5 | Creation, resume flags, old checkpoint detection |
-| Strategy/protocol | 3 | Strategy selection, protocol mapping |
-| Read-only heuristic | 4 | Word boundary matching, substring false positives ("address" != "add") |
-| Cross-inhibition | 3 | Dampening formula, equal-confidence escalation, weight calculation |
-| Reserve pool | 3 | Release conditions, error recovery hold, final wave capacity |
-| Zero subtask / edge cases | 3 | Direct-answer mode, empty input, single-subtask bypass |
-| Decay variants + auto-pin | 13 | Adaptive decay, floor, pinned, auto-pin/unpin lifecycle, 200-trial Monte Carlo |
+| Category | File | Tests | What's Covered |
+|----------|------|-------|----------------|
+| **Prompt compliance** | `hive-prompt-compliance.spec.ts` | **66** | **Parses hive.md itself: verifies all 16 mechanisms, 10 steps in order, thresholds, formulas, flags, agent template, error handling, security, cross-references src/ exports** |
+| Core mechanisms | `hive-mechanisms.spec.ts` | 68 | Pheromone decay, quorum, velocity, TTL, scoring, reserve pool, mode detection |
+| Worktree isolation | `hive-mechanisms.spec.ts` | 22 | Activation rules, merge decisions, conflict resolution, integration |
+| Stress/adversarial | `hive-mechanisms.spec.ts` | 14 | 1000-entry pheromone, NaN, empty arrays, 100-agent conflicts, Unicode |
+| Decay variants + auto-pin | `hive-mechanisms.spec.ts` | 13 | Adaptive decay, floor, pinned, auto-pin/unpin lifecycle, 200-trial Monte Carlo |
+| Output parsing | `hive-mechanisms.spec.ts` | 7 | Missing fields, unformatted output, empty responses, multiline |
+| Negation-aware overlap | `hive-mechanisms.spec.ts` | 5 | "no damage found" vs "damage found" treated as DIFFERENT |
+| Checkpoint/Resume | `hive-mechanisms.spec.ts` | 5 | Creation, resume flags, old checkpoint detection |
+| Read-only heuristic | `hive-mechanisms.spec.ts` | 4 | Word boundary matching ("address" != "add") |
+| Cross-inhibition | `hive-mechanisms.spec.ts` | 3 | Dampening formula, escalation, weight calculation |
+| Reserve pool release | `hive-mechanisms.spec.ts` | 3 | Release conditions, error recovery hold, final wave |
+| Strategy/protocol | `hive-mechanisms.spec.ts` | 3 | Strategy selection, protocol mapping |
+| Zero subtask / edge cases | `hive-mechanisms.spec.ts` | 3 | Direct-answer mode, empty input, single-subtask bypass |
+
+**Why two test files?** `hive-mechanisms.spec.ts` tests the algorithmic logic (math, thresholds, formulas). `hive-prompt-compliance.spec.ts` tests the actual skill file: it parses `hive.md` and verifies every required section, mechanism, threshold, and instruction is present. If someone edits the prompt and accidentally removes a mechanism or breaks a threshold, the compliance tests catch it.
 
 **A/B tested:** Pheromone evaporation vs "just use the most recent run." 100-trial Monte Carlo simulation:
 
@@ -401,7 +404,8 @@ The mechanisms come from peer-reviewed research:
 |------|---------|
 | `hive.md` | The skill. Copy to `~/.claude/commands/` |
 | `src/hive-mechanisms.ts` | Reference implementation of all algorithmic logic |
-| `tests/hive-mechanisms.spec.ts` | 175 tests importing from `src/` (requires vitest) |
+| `tests/hive-mechanisms.spec.ts` | 175 algorithmic tests importing from `src/` |
+| `tests/hive-prompt-compliance.spec.ts` | 66 tests that parse `hive.md` directly |
 
 ## Running Tests
 
@@ -449,13 +453,13 @@ Resume picks up exactly where it left off, with completed results preserved for 
 | **Concurrency scaling** | TCP-inspired velocity (auto-tunes) | Fixed | Fixed | Fixed | Fixed |
 | **Parallelism** | Concurrent (shared rate pool) | Separate processes | tmux (isolated) | Separate sessions | Multi-provider |
 | **Multi-provider** | Claude only | Claude + Codex | Claude + teams | Claude + Codex + Gemini + Aider | 8 providers |
-| **Test coverage** | 175 algorithmic tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
+| **Test coverage** | 241 tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
 | **Dependencies** | Zero | Many | tmux | Go | Node + config |
 | **Community/adoption** | New | 26.8K stars | 12.4K stars | 6.6K stars | 2K stars |
 
 ### Where Hive leads
 
-**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 175 algorithmic tests and peer-reviewed research.
+**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 241 tests and peer-reviewed research.
 
 **Zero setup cost.** Copy one markdown file. That's it. No binary to install, no server to run, no config file to write. Every other tool in this space requires installation steps.
 
