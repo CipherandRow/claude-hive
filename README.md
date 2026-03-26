@@ -53,6 +53,216 @@ Duration: 57s total. Score: 9.2/10
 History saved to ~/.claude/hive-history.jsonl
 ```
 
+<details>
+<summary><b>With --verbose: see every mechanism in action</b></summary>
+
+```
+> /hive --verbose fix all TypeScript errors in src/
+
+Mode: Standard (6 subtasks) | Strategy: wide-parallel | Protocol: vote
+Playbook: 2 pinned strategies loaded (wide-parallel/qa scored 9.2, iterative/fix scored 8.8)
+Worktree isolation: ON (file-writing detected)
+Context: 23% used | Estimated cost: ~35% for full plan
+
+Wave 1 (concurrency: 5, reserve: 1)
+  [DONE] Fix src/auth.ts -- 3 errors fixed (38s, HIGH)
+  [DONE] Fix src/api.ts -- 1 error fixed (22s, HIGH)
+  [DONE] Fix src/utils.ts -- 2 errors fixed (31s, HIGH)
+  [DONE] Fix src/models.ts -- 4 errors fixed (45s, MEDIUM)
+  [DONE] Fix src/routes.ts -- 1 error fixed (19s, HIGH)
+
+## Wave 1 Trace
+Mechanisms activated: [1] Pheromone, [2] Self-Validation, [4] Stigmergy,
+                      [5] Velocity, [15] Adaptive, [16] Worktree
+Decisions:
+  - Mode: standard (6 subtasks, threshold 4-8)
+  - Strategy: wide-parallel (all independent, from pinned playbook)
+  - Parallelism: standard tier (ratio 0.52, 5 of 5 launched concurrently)
+  - Worktree: ON (detected "fix" keyword, file-writing task)
+  - Reserve: 1 of 6 held back
+Stigmergy: 11 findings posted across 5 agent files, 0 duplicates
+Timing:
+  - Fastest agent: 22s (src/api.ts)
+  - Slowest agent: 45s (src/models.ts)
+  - Velocity: 2.3 completions/min (expected 1.8, action: maintain)
+Confidence: chain=0.82, min=0.85 (src/models.ts), avg=0.91
+Worktree merges: 5 auto-merged (all >= 0.85), 0 conflicts
+Checkpoint: saved to .hive/checkpoints/hive-20260326-1600-wave1.json
+
+Wave 2 (concurrency: 1)
+  [DONE] Synthesize + merge all branches (12s, HIGH)
+
+## Learning
+Score: 9.2/10 (11/11 passed, no throttles, fast, good stigmergy)
+Playbook: wide-parallel/fix scored 9.2 (streak: [8.8, 9.1, 9.2] -- AUTO-PINNED)
+History: appended to ~/.claude/hive-history.jsonl (32 entries, pruned 0)
+```
+
+</details>
+
+<details>
+<summary><b>With --dry-run: preview the plan before spending API calls</b></summary>
+
+```
+> /hive --dry-run fix all TypeScript errors in src/
+
+DRY RUN -- no agents will be launched
+
+Mode: Standard (6 subtasks detected)
+Strategy: wide-parallel (all tasks independent)
+Protocol: vote (reasoning task)
+Worktree isolation: ON (file-writing detected)
+
+Plan:
+  Wave 1 (5 agents, 1 reserve):
+    1. Fix src/auth.ts (model: sonnet, est. 30-45s)
+    2. Fix src/api.ts (model: sonnet, est. 20-30s)
+    3. Fix src/utils.ts (model: sonnet, est. 25-35s)
+    4. Fix src/models.ts (model: sonnet, est. 35-50s)
+    5. Fix src/routes.ts (model: sonnet, est. 20-30s)
+  Wave 2 (1 agent):
+    6. Synthesize + merge (model: opus, est. 10-20s)
+
+Estimated context: ~35% of window
+Mechanisms: [1] [2] [4] [5] [15] [16] active, [3] [6] [7] [8] standby
+Playbook: 2 pinned strategies available
+
+To execute: /hive fix all TypeScript errors in src/
+```
+
+</details>
+
+## Mechanisms in Action
+
+Real scenarios where Hive's biological mechanisms outperform simple "spawn N agents and merge."
+
+<details>
+<summary><b>Quorum Sensing resolves a real disagreement</b></summary>
+
+**Scenario:** 5 agents audit a payments module for security issues.
+
+Without Hive (simple merge):
+```
+Agent 1: "Found SQL injection in processPayment()"
+Agent 2: "No SQL injection, but found XSS in renderReceipt()"
+Agent 3: "Found SQL injection in processPayment()"
+Agent 4: "Code looks clean, no issues"
+Agent 5: "SQL injection risk in processPayment(), also XSS in renderReceipt()"
+
+Simple merge: ???  (list all 5 opinions, let the user sort it out)
+```
+
+With Hive (Semantic Quorum + Negation-Aware Overlap):
+```
+Quorum check: grouping 5 conclusions by semantic meaning...
+  Group A: "SQL injection in processPayment" — agents 1, 3, 5 (3/5 = quorum)
+  Group B: "XSS in renderReceipt" — agents 2, 5 (2/5 = no quorum, flagged)
+  Group C: "no issues" — agent 4 (1/5 = outlier, discarded)
+  Negation check: agent 4 ("no issues") vs group A ("SQL injection") = DIFFERENT ✓
+
+Result: SQL injection confirmed (quorum). XSS flagged for review (no quorum).
+Agent 4's "clean" verdict is correctly identified as an outlier.
+```
+
+The quorum mechanism doesn't just count votes. It uses semantic similarity to group "Found SQL injection in processPayment()" and "SQL injection risk in processPayment()" as the same finding, even though the strings are different. And negation-aware overlap catches that "no issues" contradicts "SQL injection" rather than being a partial match.
+
+</details>
+
+<details>
+<summary><b>Reasoning Tree finds WHERE agents disagree</b></summary>
+
+**Scenario:** 2 agents refactor an auth module and produce different results.
+
+Without Hive: pick the one with higher confidence, or ask the user.
+
+With Hive (Reasoning Tree Conflict Resolution):
+```
+Agent A (confidence: 0.88):
+  Step 1: Read auth.ts → found JWT validation
+  Step 2: Identified token refresh logic → needs refactor
+  Step 3: Moved refresh to middleware → cleaner separation
+  Step 4: Updated 3 route handlers to use middleware
+
+Agent B (confidence: 0.85):
+  Step 1: Read auth.ts → found JWT validation
+  Step 2: Identified token refresh logic → needs refactor
+  Step 3: Kept refresh inline → added error boundary instead
+  Step 4: Updated 3 route handlers with try/catch
+
+Divergence found at Step 3:
+  A: "move to middleware"  vs  B: "keep inline, add error boundary"
+
+Challenger (Sonnet) evaluates Step 3:
+  "A's middleware approach is more maintainable but changes the call pattern.
+   B's inline approach is safer for a refactor (less blast radius).
+   Confidence: 0.78 → accept B for refactoring, recommend A for greenfield."
+
+Result: Agent B's approach accepted (lower risk for refactor context).
+```
+
+Instead of "Agent A wins because 0.88 > 0.85," the reasoning tree identifies the exact step where they diverge and makes a context-aware decision. The Sonnet challenger costs one cheap API call and saves an Opus escalation ~70% of the time.
+
+</details>
+
+<details>
+<summary><b>Velocity scaling prevents rate limit crashes</b></summary>
+
+**Scenario:** 12-task QA run on a large codebase, hitting API rate limits at agent 7.
+
+Without Hive: agents 7-12 all hit 429 errors, retry randomly, some timeout, user gets partial results.
+
+With Hive (Completion Velocity + Checkpoint/Resume):
+```
+Wave 1 (concurrency: 5, reserve: 2)
+  [DONE] Task 1 (22s) [DONE] Task 2 (31s) [DONE] Task 3 (28s)
+  [DONE] Task 4 (35s) [DONE] Task 5 (24s)
+  Velocity: 2.1/min (expected 1.8) → action: scale up
+
+Wave 2 (concurrency: 7, boosted from velocity)
+  [DONE] Task 6 (29s) [DONE] Task 7 (33s)
+  [429]  Task 8 — rate limited
+  [429]  Task 9 — rate limited
+
+  Rate limit detected → checkpoint saved → concurrency halved to 3 → 30s delay
+
+Wave 3 (concurrency: 3, throttled)
+  [DONE] Task 8 (41s) [DONE] Task 9 (38s) [DONE] Task 10 (44s)
+  Velocity: 1.1/min → action: maintain (recovering)
+
+Wave 4 (concurrency: 3, stable)
+  [DONE] Task 11 (36s) [DONE] Task 12 (32s)
+
+Result: 12/12 tasks completed. 2 rate limits absorbed. 0 lost work.
+```
+
+The TCP-inspired velocity control scales UP when things go well (wave 1 was fast, so wave 2 gets more agents), and halves on errors (wave 3 drops to 3). The checkpoint at wave 2 means if the session died, `/hive --resume` would pick up at task 8.
+
+</details>
+
+<details>
+<summary><b>Auto-Pin preserves winning strategies across sessions</b></summary>
+
+**Scenario:** Over 5 runs, Hive discovers that `fan-out-gather` works best for research tasks.
+
+```
+Run 1: fan-out-gather/research → 7.5/10 (good, not pinned)
+Run 2: fan-out-gather/research → 8.2/10 (streak: 1 of 3 needed)
+Run 3: fan-out-gather/research → 8.8/10 (streak: 2 of 3)
+Run 4: fan-out-gather/research → 9.1/10 (streak: 3 of 3 → AUTO-PINNED)
+
+Pinned strategy now bypasses pheromone decay.
+A month later, this strategy still loads first for research tasks.
+
+Run 12: fan-out-gather/research → 5.2/10 (codebase changed significantly)
+Run 13: fan-out-gather/research → 4.8/10 (2 consecutive < 6.0 → AUTO-UNPINNED)
+
+Strategy released back to normal decay. Next run will re-evaluate.
+```
+
+Without auto-pin, the 9.1/10 strategy from run 4 would score 1.9 after 30 days of pheromone decay, even though it's still the best approach. With auto-pin, it persists until it actually stops working.
+
+</details>
+
 ## What It Does
 
 When you run `/hive <task>`, it:

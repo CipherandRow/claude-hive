@@ -1,14 +1,33 @@
 {
-  "name": "claude-hive",
-  "version": "1.0.0",
-  "description": "A drop-in skill that turns Claude Code into a multi-agent swarm. 17 mechanisms from honeybee and ant colony research, backed by 149 unit tests including adversarial, stress, and A/B comparisons.",
+  "name": "@cipherrow/hive",
+  "version": "3.1.0",
+  "description": "Bio-inspired swarm orchestrator for Claude Code. 16 mechanisms from honeybee and ant colony research, 173 algorithmic tests.",
   "main": "src/hive-mechanisms.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest --watch"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "claude-code",
+    "swarm",
+    "multi-agent",
+    "orchestration",
+    "ai-agents",
+    "claude",
+    "anthropic",
+    "bio-inspired",
+    "prompt-engineering"
+  ],
+  "author": "John Nowlan <john@cipherandrow.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CipherandRow/claude-hive.git"
+  },
+  "homepage": "https://github.com/CipherandRow/claude-hive",
+  "bugs": {
+    "url": "https://github.com/CipherandRow/claude-hive/issues"
+  },
   "devDependencies": {
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"
