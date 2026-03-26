@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/readme-banner.jpg" alt="Hive - Swarm intelligence for Claude Code" width="100%">
+</p>
+
 # Hive: Bio-Inspired Swarm Orchestrator for Claude Code
 
 A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 241 tests including adversarial, stress, and A/B comparisons.
@@ -286,6 +290,10 @@ Most "swarm" prompts are 20 lines that say "spawn N agents and merge results." T
 Hive handles all of these with mechanisms adapted from real biological research.
 
 ## The 16 Mechanisms
+
+<p align="center">
+  <img src="images/architecture.jpg" alt="Hive mechanism pipeline" width="100%">
+</p>
 
 | # | Mechanism | From | What It Solves |
 |---|-----------|------|----------------|

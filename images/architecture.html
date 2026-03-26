@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1000px;
+    height: 560px;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    padding: 40px 48px;
+  }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+
+  h2 span { color: #fbbf24; }
+
+  .pipeline {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+    height: 340px;
+  }
+
+  .phase {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .phase-label {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 8px 0;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .phase:nth-child(1) .phase-label { color: #818cf8; background: rgba(129,140,248,0.1); }
+  .phase:nth-child(2) .phase-label { color: #fbbf24; background: rgba(251,191,36,0.1); }
+  .phase:nth-child(3) .phase-label { color: #34d399; background: rgba(52,211,153,0.1); }
+  .phase:nth-child(4) .phase-label { color: #f472b6; background: rgba(244,114,182,0.1); }
+  .phase:nth-child(5) .phase-label { color: #38bdf8; background: rgba(56,189,248,0.1); }
+
+  .phase-body {
+    flex: 1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0 0 8px 8px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mech {
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.75);
+  }
+
+  .mech small {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.3);
+    margin-top: 2px;
+  }
+
+  .arrow-col {
+    display: flex;
+    align-items: center;
+    color: rgba(255,255,255,0.15);
+    font-size: 20px;
+    padding-top: 24px;
+  }
+
+  .modes {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .mode {
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+  }
+
+  .mode-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 4px;
+  }
+
+  .mode.active .mode-name { color: #fbbf24; }
+
+  .mode-desc {
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+  }
+
+  .mode.active {
+    border-color: rgba(251,191,36,0.2);
+    background: rgba(251,191,36,0.04);
+  }
+</style>
+</head>
+<body>
+  <h2>&#x1F41D; How <span>Hive</span> Works</h2>
+
+  <div class="pipeline">
+    <div class="phase">
+      <div class="phase-label">Plan</div>
+      <div class="phase-body">
+        <div class="mech">Adaptive Mode<small>Auto-detect complexity</small></div>
+        <div class="mech">Pheromone Scoring<small>Rank past strategies</small></div>
+        <div class="mech">Playbook Lookup<small>Load pinned winners</small></div>
+        <div class="mech">Protocol Select<small>Vote / consensus / AAD</small></div>
+      </div>
+    </div>
+    <div class="arrow-col">&rarr;</div>
+    <div class="phase">
+      <div class="phase-label">Execute</div>
+      <div class="phase-body">
+        <div class="mech">Worktree Isolation<small>Git branch per agent</small></div>
+        <div class="mech">Self-Validation<small>Agents check own work</small></div>
+        <div class="mech">Stigmergy Board<small>Share findings indirectly</small></div>
+        <div class="mech">Ready-Up Signal<small>Verify inputs first</small></div>
+      </div>
+    </div>
+    <div class="arrow-col">&rarr;</div>
+    <div class="phase">
+      <div class="phase-label">Coordinate</div>
+      <div class="phase-body">
+        <div class="mech">Velocity Scaling<small>TCP-inspired concurrency</small></div>
+        <div class="mech">Scout Retirement<small>Kill stuck agents</small></div>
+        <div class="mech">Cross-Inhibition<small>Dampen weak proposals</small></div>
+        <div class="mech">Checkpoint<small>Save state, resume later</small></div>
+      </div>
+    </div>
+    <div class="arrow-col">&rarr;</div>
+    <div class="phase">
+      <div class="phase-label">Resolve</div>
+      <div class="phase-body">
+        <div class="mech">Semantic Quorum<small>LLM-based vote grouping</small></div>
+        <div class="mech">Reasoning Tree<small>Find exact divergence</small></div>
+        <div class="mech">Inspector Re-check<small>Revisit rejected options</small></div>
+        <div class="mech">Assembly Line QC<small>Wave handoff gates</small></div>
+      </div>
+    </div>
+    <div class="arrow-col">&rarr;</div>
+    <div class="phase">
+      <div class="phase-label">Learn</div>
+      <div class="phase-body">
+        <div class="mech">Pheromone Update<small>Score decays over time</small></div>
+        <div class="mech">Auto-Pin<small>Lock winning streaks</small></div>
+        <div class="mech">Auto-Unpin<small>Release when stale</small></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modes">
+    <div class="mode">
+      <div class="mode-name">Lite (1-3 tasks)</div>
+      <div class="mode-desc">Spawn, collect, done. No overhead.</div>
+    </div>
+    <div class="mode active">
+      <div class="mode-name">Standard (4-8 tasks)</div>
+      <div class="mode-desc">Adds stigmergy, velocity, checkpoints, worktrees.</div>
+    </div>
+    <div class="mode">
+      <div class="mode-name">Full (9+ tasks)</div>
+      <div class="mode-desc">All 16 mechanisms active.</div>
+    </div>
+  </div>
+</body>
+</html>

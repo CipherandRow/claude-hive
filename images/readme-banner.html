@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 300px;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+  }
+
+  .bee { font-size: 56px; }
+
+  .text h1 {
+    font-size: 44px;
+    font-weight: 900;
+    letter-spacing: -1.5px;
+  }
+
+  .text h1 span { color: #fbbf24; }
+
+  .text p {
+    font-size: 18px;
+    color: rgba(255,255,255,0.45);
+    margin-top: 8px;
+  }
+
+  .divider {
+    width: 1px;
+    height: 80px;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .stats {
+    display: flex;
+    gap: 32px;
+  }
+
+  .stat-val {
+    font-size: 32px;
+    font-weight: 900;
+    color: #fbbf24;
+    text-align: center;
+  }
+
+  .stat-lbl {
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    text-align: center;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+  <div class="bee">&#x1F41D;</div>
+  <div class="text">
+    <h1><span>Hive</span></h1>
+    <p>Swarm intelligence for Claude Code</p>
+  </div>
+  <div class="divider"></div>
+  <div class="stats">
+    <div><div class="stat-val">16</div><div class="stat-lbl">Mechanisms</div></div>
+    <div><div class="stat-val">241</div><div class="stat-lbl">Tests</div></div>
+    <div><div class="stat-val">0</div><div class="stat-lbl">Deps</div></div>
+  </div>
+</body>
+</html>
