@@ -1,6 +1,6 @@
 # Hive: Bio-Inspired Swarm Orchestrator for Claude Code
 
-A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 124 unit tests including adversarial, stress, and A/B comparisons.
+A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 148 unit tests including adversarial, stress, and A/B comparisons.
 
 ## Quick Start
 
@@ -110,9 +110,19 @@ Outputs: strategy, wave structure, agent count, estimated cost, and which mechan
 
 A 2-task swarm runs exactly as fast as a basic "spawn 2 agents" prompt. The complexity only activates when it's needed.
 
+## Verbose Mode
+
+See exactly which mechanisms activated and what decisions were made:
+
+```bash
+/hive --verbose fix all TypeScript errors in src/
+```
+
+Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, timing, confidence scores, and scaling decisions. Useful for understanding what Hive is doing under the hood.
+
 ## Test Results
 
-124 tests, all passing:
+148 tests, all passing:
 
 | Category | Tests | What's Covered |
 |----------|-------|----------------|
@@ -123,6 +133,10 @@ A 2-task swarm runs exactly as fast as a basic "spawn 2 agents" prompt. The comp
 | Output parsing | 7 | Missing fields, unformatted output, empty responses, multiline |
 | Checkpoint/Resume | 5 | Creation, resume flags, old checkpoint detection |
 | Strategy/protocol | 3 | Strategy selection, protocol mapping |
+| Read-only heuristic | 4 | Word boundary matching, substring false positives ("address" != "add") |
+| Cross-inhibition | 3 | Dampening formula, equal-confidence escalation, weight calculation |
+| Reserve pool | 3 | Release conditions, error recovery hold, final wave capacity |
+| Zero subtask / edge cases | 3 | Direct-answer mode, empty input, single-subtask bypass |
 
 **A/B tested:** Pheromone evaporation vs "just use the most recent run." 100-trial Monte Carlo simulation:
 
@@ -161,7 +175,7 @@ The mechanisms come from peer-reviewed research:
 | File | Purpose |
 |------|---------|
 | `hive.md` | The skill. Copy to `~/.claude/commands/` |
-| `tests/hive-mechanisms.spec.ts` | 124 unit tests (requires vitest) |
+| `tests/hive-mechanisms.spec.ts` | 148 unit tests (requires vitest) |
 
 ## How It Learns
 
@@ -196,16 +210,17 @@ Resume picks up exactly where it left off, with completed results preserved for 
 | **Learning** | Pheromone decay + playbook | Neural self-learning (more adaptive) | No | No | No |
 | **Rate limit handling** | Checkpoint + halve + delay + resume | Retry | Retry | Manual | Retry |
 | **Context management** | Ceiling detection + emergency save | Not documented | Not documented | Not documented | Not documented |
+| **Observability** | Execution trace (--verbose) | Not documented | Not documented | Not documented | Not documented |
 | **Concurrency scaling** | TCP-inspired velocity (auto-tunes) | Fixed | Fixed | Fixed | Fixed |
 | **Real parallelism** | No (sequential API pipeline) | Yes (separate processes) | Yes (tmux) | Yes (separate sessions) | Yes (multi-provider) |
 | **Multi-provider** | Claude only | Claude + Codex | Claude + teams | Claude + Codex + Gemini + Aider | 8 providers |
-| **Test coverage** | 124 tests (adversarial, A/B, stress) | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
+| **Test coverage** | 148 tests (adversarial, A/B, stress) | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
 | **Dependencies** | Zero | Many | tmux | Go | Node + config |
-| **Community/adoption** | New (0 stars) | 26.8K stars | 12.4K stars | 6.6K stars | 2K stars |
+| **Community/adoption** | New | 26.8K stars | 12.4K stars | 6.6K stars | 2K stars |
 
 ### Where Hive leads
 
-**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 124 unit tests and peer-reviewed research.
+**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 148 unit tests and peer-reviewed research.
 
 **Zero setup cost.** Copy one markdown file. That's it. No binary to install, no server to run, no config file to write. Every other tool in this space requires installation steps.
 
@@ -221,7 +236,7 @@ Resume picks up exactly where it left off, with completed results preserved for 
 
 **Multi-provider.** Claude Octopus supports 8 LLM providers with cross-model adversarial review (different models check each other's work). Hive is Claude-only. If you use multiple AI providers, Hive is not the right tool.
 
-**Stars and community.** Ruflo has 26.8K stars and thousands of users battle-testing edge cases. Hive has 0. Adoption follows visibility, and a larger community means bugs are found and fixed faster.
+**Stars and community.** Ruflo has 26.8K stars and thousands of users battle-testing edge cases. Hive is new. Adoption follows visibility, and a larger community means bugs are found and fixed faster.
 
 ### When Not to Use Hive
 

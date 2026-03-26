@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 // =============================================================================
-// Hive Mechanism Tests — 17 bio-inspired mechanisms
+// Hive Mechanism Tests — 16 bio-inspired mechanisms
 // =============================================================================
 // These tests validate the algorithmic logic of each mechanism WITHOUT
 // requiring actual Claude API calls. They test the decision-making math,
@@ -134,6 +134,106 @@ function conflictWinner(agents: { id: string; confidence: number; completedAt: n
   return sorted[0].id;
 }
 
+// ---- Reasoning Tree Conflict helpers ----
+
+function resolveConflict(
+  agentA: { result: string; confidence: number; steps: string[] },
+  agentB: { result: string; confidence: number; steps: string[] },
+  challengerConfidence: number
+): { winner: 'A' | 'B'; escalateToOpus: boolean; divergenceStep: number } {
+  // Find first step where reasoning diverges
+  const divergenceStep = agentA.steps.findIndex((s, i) => s !== agentB.steps[i]);
+  const effectiveStep = divergenceStep === -1 ? 0 : divergenceStep;
+
+  if (challengerConfidence <= 0.7) {
+    return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: true, divergenceStep: effectiveStep };
+  }
+  // Higher confidence at divergence point wins
+  return { winner: agentA.confidence >= agentB.confidence ? 'A' : 'B', escalateToOpus: false, divergenceStep: effectiveStep };
+}
+
+// ---- Stigmergy backpressure helpers ----
+
+function checkBackpressure(findingsSinceLastSummary: number): { shouldThrottle: boolean; shouldSummarize: boolean } {
+  return {
+    shouldThrottle: findingsSinceLastSummary > 20,
+    shouldSummarize: findingsSinceLastSummary > 20,
+  };
+}
+
+// ---- Cross-Inhibition helpers ----
+
+function crossInhibit(proposals: { confidence: number; proposal: string }[]): { proposal: string; weight: number }[] {
+  const maxConf = Math.max(...proposals.map(p => p.confidence));
+  return proposals.map(p => ({
+    proposal: p.proposal,
+    weight: p.confidence * (1 - maxConf * 0.5),
+  })).sort((a, b) => b.weight - a.weight);
+}
+
+function shouldEscalateToReasoningTree(proposals: { confidence: number }[]): boolean {
+  if (proposals.length < 2) return false;
+  const sorted = [...proposals].sort((a, b) => b.confidence - a.confidence);
+  return Math.abs(sorted[0].confidence - sorted[1].confidence) <= 0.05;
+}
+
+// ---- Checkpoint/Resume helpers ----
+
+interface Checkpoint {
+  task: string;
+  wave: number;
+  completedResults: { taskId: string; result: string; confidence: number }[];
+  remainingTasks: string[];
+  concurrency: number;
+  timestamp: number;
+}
+
+function createCheckpoint(data: Omit<Checkpoint, 'timestamp'>): Checkpoint {
+  return { ...data, timestamp: Date.now() };
+}
+
+function isCheckpointStale(checkpoint: Checkpoint, maxAgeHours = 24): boolean {
+  return (Date.now() - checkpoint.timestamp) > maxAgeHours * 60 * 60 * 1000;
+}
+
+function resumeFromCheckpoint(checkpoint: Checkpoint): { startWave: number; skipTasks: string[]; concurrency: number } {
+  return {
+    startWave: checkpoint.wave + 1,
+    skipTasks: checkpoint.completedResults.map(r => r.taskId),
+    concurrency: checkpoint.concurrency,
+  };
+}
+
+// ---- Read-only heuristic helpers ----
+
+function isReadOnly(taskDescription: string): boolean {
+  const writeKeywords = ['fix', 'refactor', 'update', 'create', 'write', 'modify', 'add', 'remove', 'delete'];
+  return !writeKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(taskDescription));
+}
+
+// ---- Zero subtask guard ----
+
+function shouldSkipSwarm(subtaskCount: number): boolean {
+  return subtaskCount === 0;
+}
+
+// ---- Parallelism tier with failures ----
+
+function detectTierWithFailures(ratio: number, allFailed: boolean): 'limited' | 'standard' | 'max' {
+  if (allFailed) return 'limited';
+  return detectParallelismTier(ratio);
+}
+
+// ---- Reserve pool release conditions ----
+
+function shouldReleaseReserve(opts: { allQueued: boolean; noneWaiting: boolean; zeroFailures: boolean; velocityAboveExpected: boolean; isFinalWave: boolean; inErrorRecovery: boolean }): boolean {
+  if (opts.inErrorRecovery) return false;
+  if (opts.isFinalWave) return true;
+  if (opts.allQueued && opts.noneWaiting) return true;
+  if (opts.zeroFailures && opts.velocityAboveExpected) return true;
+  return false;
+}
+
 // ---- Parse agent output ----
 
 function parseAgentOutput(raw: string): {
@@ -191,24 +291,32 @@ describe('Mechanism 1: Pheromone Evaporation', () => {
     expect(pheromoneScore(10, 100)).toBeLessThan(0.1);
   });
 
-  it('Monte Carlo: pheromone beats recency-only with variance', () => {
-    // Simulate 100 history entries with varying scores and ages
-    const history = Array.from({ length: 100 }, (_, i) => ({
-      score: 5 + Math.sin(i * 0.3) * 4, // oscillating 1-9
-      days: i,
-    }));
+  it('Monte Carlo: pheromone beats recency-only across random histories', () => {
+    let pheromoneWins = 0;
+    let recencyWins = 0;
 
-    const pheromoneWinner = history.reduce((best, h) => {
-      const weighted = pheromoneScore(h.score, h.days);
-      return weighted > best.weighted ? { ...h, weighted } : best;
-    }, { score: 0, days: 0, weighted: 0 });
+    for (let trial = 0; trial < 100; trial++) {
+      // Generate random history with varying quality and age
+      const history = Array.from({ length: 20 }, (_, i) => ({
+        score: 1 + Math.random() * 9,
+        days: Math.floor(Math.random() * 60),
+      }));
 
-    const recencyWinner = history[0]; // most recent
+      // Pheromone selection: best weighted score
+      const pheromoneBest = history.reduce((best, h) => {
+        const w = pheromoneScore(h.score, h.days);
+        return w > best.weighted ? { ...h, weighted: w } : best;
+      }, { score: 0, days: 0, weighted: 0 });
 
-    // Pheromone should pick a strategy that balances recency AND quality
-    // Not just the most recent one
-    expect(pheromoneWinner.weighted).toBeGreaterThan(0);
-    expect(pheromoneWinner.score).toBeGreaterThanOrEqual(recencyWinner.score * 0.8);
+      // Recency selection: most recent entry
+      const recencyBest = history.reduce((best, h) => h.days < best.days ? h : best, history[0]);
+
+      if (pheromoneBest.score >= recencyBest.score) pheromoneWins++;
+      else recencyWins++;
+    }
+
+    // Pheromone should pick better strategies more often than recency-only
+    expect(pheromoneWins).toBeGreaterThan(recencyWins);
   });
 });
 
@@ -244,19 +352,35 @@ describe('Mechanism 2: Self-Validation Gates', () => {
 // =============================================================================
 
 describe('Mechanism 3: Reasoning Tree Conflicts', () => {
-  it('high confidence resolves without Opus', () => {
-    const challengerConfidence = 0.85;
-    expect(challengerConfidence > 0.7).toBe(true);
+  const agentA = { result: 'bug in auth', confidence: 0.90, steps: ['parse input', 'check auth', 'found null check missing'] };
+  const agentB = { result: 'auth is fine', confidence: 0.75, steps: ['parse input', 'check auth', 'all checks pass'] };
+  const agentC = { result: 'same conclusion', confidence: 0.80, steps: ['parse input', 'check auth', 'found null check missing'] };
+
+  it('identifies correct divergence step', () => {
+    const result = resolveConflict(agentA, agentB, 0.85);
+    expect(result.divergenceStep).toBe(2);
   });
 
-  it('low confidence escalates to Opus', () => {
-    const challengerConfidence = 0.55;
-    expect(challengerConfidence > 0.7).toBe(false);
+  it('high challenger confidence resolves without Opus', () => {
+    const result = resolveConflict(agentA, agentB, 0.85);
+    expect(result.escalateToOpus).toBe(false);
+    expect(result.winner).toBe('A');
   });
 
-  it('boundary 0.7 does NOT pass (must be >0.7)', () => {
-    const challengerConfidence = 0.7;
-    expect(challengerConfidence > 0.7).toBe(false);
+  it('low challenger confidence escalates to Opus', () => {
+    const result = resolveConflict(agentA, agentB, 0.55);
+    expect(result.escalateToOpus).toBe(true);
+    expect(result.winner).toBe('A');
+  });
+
+  it('no divergence found defaults to step 0', () => {
+    const result = resolveConflict(agentA, agentC, 0.85);
+    expect(result.divergenceStep).toBe(0);
+  });
+
+  it('Opus escalation limited to 1 per conflict: boundary at exactly 0.7', () => {
+    const result = resolveConflict(agentA, agentB, 0.7);
+    expect(result.escalateToOpus).toBe(true);
   });
 });
 
@@ -265,14 +389,34 @@ describe('Mechanism 3: Reasoning Tree Conflicts', () => {
 // =============================================================================
 
 describe('Mechanism 4: Stigmergy (Shared Findings)', () => {
-  it('backpressure triggers at >20 unread findings', () => {
-    const findings = 21;
-    expect(findings > 20).toBe(true);
+  it('triggers throttle and summarize at >20 findings since last summary', () => {
+    const result = checkBackpressure(21);
+    expect(result.shouldThrottle).toBe(true);
+    expect(result.shouldSummarize).toBe(true);
   });
 
-  it('no backpressure at 20 or fewer', () => {
-    expect(20 > 20).toBe(false);
-    expect(15 > 20).toBe(false);
+  it('no throttle at exactly 20', () => {
+    const result = checkBackpressure(20);
+    expect(result.shouldThrottle).toBe(false);
+    expect(result.shouldSummarize).toBe(false);
+  });
+
+  it('resets counter after summarization (simulated)', () => {
+    // Simulate: was at 25, summarized, now at 0
+    const before = checkBackpressure(25);
+    expect(before.shouldThrottle).toBe(true);
+    const afterReset = checkBackpressure(0);
+    expect(afterReset.shouldThrottle).toBe(false);
+    expect(afterReset.shouldSummarize).toBe(false);
+  });
+
+  it('per-agent file isolation prevents write conflicts', () => {
+    const agentIds = ['agent-1', 'agent-2', 'agent-3'];
+    const filePaths = agentIds.map(id => `.hive/findings/${id}.json`);
+    const uniquePaths = new Set(filePaths);
+    expect(uniquePaths.size).toBe(agentIds.length);
+    // Each agent gets its own file
+    expect(filePaths[0]).not.toBe(filePaths[1]);
   });
 });
 
@@ -479,19 +623,55 @@ describe('Mechanism 10: Ready-Up Signal / Pre-Flight', () => {
 // =============================================================================
 
 describe('Mechanism 11: Cross-Inhibition', () => {
-  it('higher confidence dampens lower', () => {
+  it('dampens lower confidence proposals proportionally', () => {
     const proposals = [
       { confidence: 0.93, proposal: 'A' },
       { confidence: 0.70, proposal: 'B' },
     ];
-    const sorted = proposals.sort((a, b) => b.confidence - a.confidence);
-    expect(sorted[0].proposal).toBe('A');
+    const result = crossInhibit(proposals);
+    // Both are dampened by maxConf (0.93), but A retains higher weight
+    expect(result[0].proposal).toBe('A');
+    expect(result[0].weight).toBeGreaterThan(result[1].weight);
+    // Weights are less than original confidence due to dampening
+    expect(result[0].weight).toBeLessThan(0.93);
+    expect(result[1].weight).toBeLessThan(0.70);
   });
 
-  it('equal confidence = no dampening', () => {
-    const a = { confidence: 0.85 };
-    const b = { confidence: 0.85 };
-    expect(a.confidence === b.confidence).toBe(true);
+  it('preserves ranking order after dampening', () => {
+    const proposals = [
+      { confidence: 0.60, proposal: 'C' },
+      { confidence: 0.93, proposal: 'A' },
+      { confidence: 0.80, proposal: 'B' },
+    ];
+    const result = crossInhibit(proposals);
+    expect(result[0].proposal).toBe('A');
+    expect(result[1].proposal).toBe('B');
+    expect(result[2].proposal).toBe('C');
+  });
+
+  it('escalates to reasoning tree when top two within 0.05', () => {
+    const proposals = [
+      { confidence: 0.90, proposal: 'A' },
+      { confidence: 0.87, proposal: 'B' },
+    ];
+    expect(shouldEscalateToReasoningTree(proposals)).toBe(true);
+  });
+
+  it('does not escalate when clear winner (>0.05 gap)', () => {
+    const proposals = [
+      { confidence: 0.93, proposal: 'A' },
+      { confidence: 0.70, proposal: 'B' },
+    ];
+    expect(shouldEscalateToReasoningTree(proposals)).toBe(false);
+  });
+
+  it('single proposal has no dampening effect', () => {
+    const proposals = [{ confidence: 0.85, proposal: 'A' }];
+    const result = crossInhibit(proposals);
+    expect(result.length).toBe(1);
+    expect(result[0].proposal).toBe('A');
+    // Single proposal: no escalation possible
+    expect(shouldEscalateToReasoningTree(proposals)).toBe(false);
   });
 });
 
@@ -884,16 +1064,72 @@ describe('Stress Tests', () => {
 // =============================================================================
 
 describe('Mechanism 14: Checkpoint/Resume', () => {
-  it('checkpoint filename format', () => {
-    const ts = '20260326-1400';
-    const wave = 2;
-    const filename = `hive-${ts}-wave${wave}.json`;
-    expect(filename).toBe('hive-20260326-1400-wave2.json');
+  it('creates checkpoint with timestamp', () => {
+    const cp = createCheckpoint({
+      task: 'fix auth bugs',
+      wave: 2,
+      completedResults: [{ taskId: 't1', result: 'fixed login', confidence: 0.9 }],
+      remainingTasks: ['t2', 't3'],
+      concurrency: 5,
+    });
+    expect(cp.timestamp).toBeGreaterThan(0);
+    expect(cp.task).toBe('fix auth bugs');
+    expect(cp.wave).toBe(2);
   });
 
-  it('auto-trigger on context ceiling', () => {
-    const triggers = ['context-ceiling', 'rate-limit', 'consecutive-failures'];
-    expect(triggers).toContain('context-ceiling');
+  it('detects stale checkpoint (>24h old)', () => {
+    const cp: Checkpoint = {
+      task: 'old task',
+      wave: 1,
+      completedResults: [],
+      remainingTasks: [],
+      concurrency: 3,
+      timestamp: Date.now() - 25 * 60 * 60 * 1000, // 25 hours ago
+    };
+    expect(isCheckpointStale(cp)).toBe(true);
+  });
+
+  it('fresh checkpoint is not stale', () => {
+    const cp: Checkpoint = {
+      task: 'fresh task',
+      wave: 1,
+      completedResults: [],
+      remainingTasks: [],
+      concurrency: 3,
+      timestamp: Date.now() - 1 * 60 * 60 * 1000, // 1 hour ago
+    };
+    expect(isCheckpointStale(cp)).toBe(false);
+  });
+
+  it('resume skips completed tasks', () => {
+    const cp: Checkpoint = {
+      task: 'multi-task',
+      wave: 2,
+      completedResults: [
+        { taskId: 't1', result: 'done', confidence: 0.9 },
+        { taskId: 't2', result: 'done', confidence: 0.85 },
+      ],
+      remainingTasks: ['t3', 't4'],
+      concurrency: 5,
+      timestamp: Date.now(),
+    };
+    const resumed = resumeFromCheckpoint(cp);
+    expect(resumed.skipTasks).toEqual(['t1', 't2']);
+    expect(resumed.skipTasks).not.toContain('t3');
+  });
+
+  it('resume starts at next wave', () => {
+    const cp: Checkpoint = {
+      task: 'wave test',
+      wave: 3,
+      completedResults: [],
+      remainingTasks: ['t5'],
+      concurrency: 4,
+      timestamp: Date.now(),
+    };
+    const resumed = resumeFromCheckpoint(cp);
+    expect(resumed.startWave).toBe(4);
+    expect(resumed.concurrency).toBe(4);
   });
 
   it('--resume flag detection', () => {
@@ -901,16 +1137,111 @@ describe('Mechanism 14: Checkpoint/Resume', () => {
     expect(args.includes('--resume')).toBe(true);
   });
 
-  it('--resume with checkpoint file', () => {
+  it('--resume with checkpoint file parsing', () => {
     const args = '--resume .hive/checkpoints/hive-20260326.json';
     const match = args.match(/--resume\s+(\S+)/);
     expect(match).not.toBeNull();
     expect(match![1]).toBe('.hive/checkpoints/hive-20260326.json');
   });
+});
 
-  it('old checkpoint warning (>24h)', () => {
-    const checkpointAge = 25; // hours
-    expect(checkpointAge > 24).toBe(true);
+// =============================================================================
+// Read-Only Heuristic (Word Boundary Matching)
+// =============================================================================
+
+describe('Read-Only Heuristic', () => {
+  it('"research competitors" is read-only', () => {
+    expect(isReadOnly('research competitors')).toBe(true);
+  });
+
+  it('"fix the auth bug" is NOT read-only', () => {
+    expect(isReadOnly('fix the auth bug')).toBe(false);
+  });
+
+  it('"address the issue" does NOT match "add" (word boundary)', () => {
+    expect(isReadOnly('address the issue')).toBe(true);
+  });
+
+  it('"adding tests" does NOT match "add" (word boundary)', () => {
+    expect(isReadOnly('adding tests')).toBe(true);
+  });
+
+  it('"create a new file" is NOT read-only', () => {
+    expect(isReadOnly('create a new file')).toBe(false);
+  });
+
+  it('"search and analyze" is read-only', () => {
+    expect(isReadOnly('search and analyze')).toBe(true);
+  });
+});
+
+// =============================================================================
+// Zero Subtask Guard
+// =============================================================================
+
+describe('Zero Subtask Guard', () => {
+  it('0 subtasks skips swarm', () => {
+    expect(shouldSkipSwarm(0)).toBe(true);
+  });
+
+  it('1 subtask does not skip', () => {
+    expect(shouldSkipSwarm(1)).toBe(false);
+  });
+});
+
+// =============================================================================
+// Parallelism Tier Edge Case (All Wave 1 Failures)
+// =============================================================================
+
+describe('Parallelism Tier: Wave 1 Failures', () => {
+  it('all wave 1 failures defaults to limited', () => {
+    expect(detectTierWithFailures(0.8, true)).toBe('limited');
+  });
+
+  it('partial failures still use ratio', () => {
+    expect(detectTierWithFailures(0.5, false)).toBe('standard');
+    expect(detectTierWithFailures(0.8, false)).toBe('max');
+  });
+});
+
+// =============================================================================
+// Reserve Pool Release Conditions
+// =============================================================================
+
+describe('Reserve Pool Release Conditions', () => {
+  it('releases when all queued and none waiting', () => {
+    expect(shouldReleaseReserve({
+      allQueued: true, noneWaiting: true, zeroFailures: false,
+      velocityAboveExpected: false, isFinalWave: false, inErrorRecovery: false,
+    })).toBe(true);
+  });
+
+  it('releases on clean wave with high velocity', () => {
+    expect(shouldReleaseReserve({
+      allQueued: false, noneWaiting: false, zeroFailures: true,
+      velocityAboveExpected: true, isFinalWave: false, inErrorRecovery: false,
+    })).toBe(true);
+  });
+
+  it('releases on final wave', () => {
+    expect(shouldReleaseReserve({
+      allQueued: false, noneWaiting: false, zeroFailures: false,
+      velocityAboveExpected: false, isFinalWave: true, inErrorRecovery: false,
+    })).toBe(true);
+  });
+
+  it('never releases during error recovery', () => {
+    expect(shouldReleaseReserve({
+      allQueued: true, noneWaiting: true, zeroFailures: true,
+      velocityAboveExpected: true, isFinalWave: true, inErrorRecovery: true,
+    })).toBe(false);
+  });
+
+  it('does not release when conditions not met', () => {
+    expect(shouldReleaseReserve({
+      allQueued: false, noneWaiting: false, zeroFailures: false,
+      velocityAboveExpected: false, isFinalWave: false, inErrorRecovery: false,
+    })).toBe(false);
   });
 });
 

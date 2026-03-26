@@ -35,6 +35,7 @@ Special flags:
 - `--resume` or `--resume <checkpoint-file>` resumes from the last checkpoint.
 - `--isolate` forces git worktree isolation for all agents (default: auto-enabled in Standard/Full mode when agents write files). Each agent gets its own worktree branch, results are merged back after validation.
 - `--dry-run` outputs the full execution plan (strategy, wave structure, agent count, estimated cost) without launching any agents.
+- `--verbose` outputs an execution trace after each wave showing which mechanisms activated, decisions made, and timing. Useful for verifying the skill works as described.
 
 ## Step 1: Mode Detection
 
@@ -270,6 +271,28 @@ Strategy: {strategy} | Protocol: {protocol} | Mode: {mode}
 - [FAIL] Task 2 -- error (32s)
 - [TTL] Task 3 -- timeout, reassigned
 ```
+
+### Execution Trace (--verbose)
+
+When `--verbose` is set, append a mechanism trace after each wave in the running log:
+
+```
+## Wave 1 Trace
+Mechanisms activated: [1] Pheromone, [4] Stigmergy, [5] Velocity, [15] Adaptive
+Decisions:
+  - Mode: standard (5 subtasks)
+  - Strategy: wide-parallel (all independent)
+  - Parallelism: standard tier (ratio 0.45)
+  - Worktree: OFF (read-only tasks)
+  - Reserve: 1 of 5 held back
+Timing:
+  - Fastest agent: 19s (task 3)
+  - Slowest agent: 45s (task 1)
+  - Velocity: 2.1 completions/min (expected 1.8, action: maintain)
+Confidence: chain=0.78, min=0.70 (task 4), avg=0.86
+```
+
+This trace is omitted by default to keep output clean. Always include it when `--verbose` is set.
 
 ### Between Waves
 
