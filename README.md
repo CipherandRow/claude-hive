@@ -16,7 +16,7 @@ cp hive.md ~/.claude/commands/hive.md
 
 That's it. One file, no dependencies, no server, no setup.
 
-**Important:** Hive uses Claude Code's Agent tool, which dispatches agents through a shared API pipeline. Agents are launched in parallel but share the same connection. For CPU-bound tasks where wall-clock time is critical, tmux-based tools like oh-my-claudecode offer true process-level parallelism. Hive's strength is coordination quality (conflict resolution, consensus, fault tolerance), not raw speed.
+**Note:** Hive agents run as concurrent subprocesses via Claude Code's Agent tool. They execute in parallel but share one API rate limit pool. For large swarms (10+ heavy agents), multi-session tools can distribute load across separate sessions. Hive's strength is coordination quality (conflict resolution, consensus, fault tolerance), not raw throughput.
 
 ## What a Run Looks Like
 
@@ -214,7 +214,7 @@ Resume picks up exactly where it left off, with completed results preserved for 
 | **Context management** | Ceiling detection + emergency save | Not documented | Not documented | Not documented | Not documented |
 | **Observability** | Execution trace (--verbose) | Not documented | Not documented | Not documented | Not documented |
 | **Concurrency scaling** | TCP-inspired velocity (auto-tunes) | Fixed | Fixed | Fixed | Fixed |
-| **Real parallelism** | No (sequential API pipeline) | Yes (separate processes) | Yes (tmux) | Yes (separate sessions) | Yes (multi-provider) |
+| **Real parallelism** | Yes (concurrent subprocesses, shared rate limits) | Yes (separate processes) | Yes (tmux) | Yes (separate sessions) | Yes (multi-provider) |
 | **Multi-provider** | Claude only | Claude + Codex | Claude + teams | Claude + Codex + Gemini + Aider | 8 providers |
 | **Test coverage** | 148 algorithmic tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
 | **Dependencies** | Zero | Many | tmux | Go | Node + config |
@@ -232,7 +232,7 @@ Resume picks up exactly where it left off, with completed results preserved for 
 
 ### Where others lead
 
-**Real parallelism.** oh-my-claudecode and Overstory use tmux to run truly concurrent processes across isolated terminals. Hive uses Claude Code's Agent tool, which dispatches agents in parallel but they share the API pipeline. For CPU-bound tasks where wall-clock time matters, tmux-based tools are genuinely faster.
+**Session isolation.** oh-my-claudecode and Claude Squad run fully independent Claude Code sessions, each with its own context window and rate limit budget. Hive agents run as concurrent subprocesses but share one orchestrator context and one API rate limit pool. For large swarms where rate limits are the bottleneck, multi-session tools can distribute load across separate accounts.
 
 **Adaptive learning.** Ruflo's neural self-learning adapts to user-specific patterns in ways that static pheromone decay cannot. Pheromone decay is simpler and more predictable, but it doesn't model the user's behavior. If you want a system that gets smarter about YOUR habits specifically, Ruflo's approach is more sophisticated.
 
@@ -243,7 +243,7 @@ Resume picks up exactly where it left off, with completed results preserved for 
 ### When Not to Use Hive
 
 - **Single-file edits.** If your task touches one file, just ask Claude directly. Hive adds overhead for no benefit.
-- **Tasks requiring real-time parallelism.** Hive agents share the Claude API pipeline. For CPU-bound tasks where wall-clock time is critical, use a tmux-based tool like oh-my-claudecode.
+- **Large swarms hitting rate limits.** Hive agents share one API rate limit pool. If you need 10+ heavy agents simultaneously, multi-session tools (oh-my-claudecode, Claude Squad) can distribute load across separate sessions.
 - **Multi-provider workflows.** Hive is Claude-only. If you need GPT-4 checking Claude's work, use Claude Octopus.
 - **Exploratory conversations.** Hive is for defined tasks with clear subtasks, not open-ended brainstorming.
 
