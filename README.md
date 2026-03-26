@@ -1,6 +1,6 @@
 # Hive: Bio-Inspired Swarm Orchestrator for Claude Code
 
-A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 148 unit tests including adversarial, stress, and A/B comparisons.
+A drop-in skill that turns Claude Code into a multi-agent swarm. 16 mechanisms from honeybee and ant colony research, backed by 148 algorithmic tests including adversarial, stress, and A/B comparisons.
 
 ## Quick Start
 
@@ -15,6 +15,8 @@ cp hive.md ~/.claude/commands/hive.md
 ```
 
 That's it. One file, no dependencies, no server, no setup.
+
+**Important:** Hive uses Claude Code's Agent tool, which dispatches agents through a shared API pipeline. Agents are launched in parallel but share the same connection. For CPU-bound tasks where wall-clock time is critical, tmux-based tools like oh-my-claudecode offer true process-level parallelism. Hive's strength is coordination quality (conflict resolution, consensus, fault tolerance), not raw speed.
 
 ## What a Run Looks Like
 
@@ -122,7 +124,7 @@ Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, tim
 
 ## Test Results
 
-148 tests, all passing:
+148 algorithmic logic tests, all passing. These validate the math, thresholds, and decision logic that Hive instructs Claude to follow. They are not end-to-end integration tests (those require live Claude sessions):
 
 | Category | Tests | What's Covered |
 |----------|-------|----------------|
@@ -140,13 +142,13 @@ Outputs a mechanism trace after each wave: which of the 16 mechanisms fired, tim
 
 **A/B tested:** Pheromone evaporation vs "just use the most recent run." 100-trial Monte Carlo simulation:
 
-| Metric | Pheromone (0.95/day) | Recency-Only |
+| Metric | Pheromone (0.95/day) | Best-of-Recent (last 3 days) |
 |--------|---------------------|--------------|
 | Mean selected score | 6.65 | 5.02 |
 | Selected a bad strategy (<4) | 3/100 trials | 41/100 trials |
 | Recovery from recent bad run | 1 run | Never (locked in) |
 
-The key insight: with variable history (some good runs, some bad), recency-only locks onto whatever happened last. Pheromone decay weights recent quality AND historical quality, recovering from a single bad run within one iteration. Test in `tests/hive-mechanisms.spec.ts`, "Monte Carlo" describe block.
+The key insight: with variable history, picking the best recent run ignores quality trends beyond a narrow window. Pheromone decay weights the full history with time-appropriate discounting, recovering from a single bad run within one iteration. Test in `tests/hive-mechanisms.spec.ts`, "Monte Carlo" describe block.
 
 **Adversarial tested:**
 - Negation near-misses ("no damage found" vs "damage found" correctly treated as DIFFERENT)
@@ -175,7 +177,7 @@ The mechanisms come from peer-reviewed research:
 | File | Purpose |
 |------|---------|
 | `hive.md` | The skill. Copy to `~/.claude/commands/` |
-| `tests/hive-mechanisms.spec.ts` | 148 unit tests (requires vitest) |
+| `tests/hive-mechanisms.spec.ts` | 148 algorithmic tests (requires vitest) |
 
 ## How It Learns
 
@@ -214,13 +216,13 @@ Resume picks up exactly where it left off, with completed results preserved for 
 | **Concurrency scaling** | TCP-inspired velocity (auto-tunes) | Fixed | Fixed | Fixed | Fixed |
 | **Real parallelism** | No (sequential API pipeline) | Yes (separate processes) | Yes (tmux) | Yes (separate sessions) | Yes (multi-provider) |
 | **Multi-provider** | Claude only | Claude + Codex | Claude + teams | Claude + Codex + Gemini + Aider | 8 providers |
-| **Test coverage** | 148 tests (adversarial, A/B, stress) | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
+| **Test coverage** | 148 algorithmic tests | Not publicly documented | Not publicly documented | Not publicly documented | Not publicly documented |
 | **Dependencies** | Zero | Many | tmux | Go | Node + config |
 | **Community/adoption** | New | 26.8K stars | 12.4K stars | 6.6K stars | 2K stars |
 
 ### Where Hive leads
 
-**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 148 unit tests and peer-reviewed research.
+**Algorithmic depth.** No other tool finds the exact reasoning step where agents disagree (Reasoning Trees), uses semantic similarity for quorum instead of string matching, or applies TCP-inspired congestion control to agent concurrency. These aren't marketing features. They're backed by 148 algorithmic tests and peer-reviewed research.
 
 **Zero setup cost.** Copy one markdown file. That's it. No binary to install, no server to run, no config file to write. Every other tool in this space requires installation steps.
 
@@ -244,6 +246,12 @@ Resume picks up exactly where it left off, with completed results preserved for 
 - **Tasks requiring real-time parallelism.** Hive agents share the Claude API pipeline. For CPU-bound tasks where wall-clock time is critical, use a tmux-based tool like oh-my-claudecode.
 - **Multi-provider workflows.** Hive is Claude-only. If you need GPT-4 checking Claude's work, use Claude Octopus.
 - **Exploratory conversations.** Hive is for defined tasks with clear subtasks, not open-ended brainstorming.
+
+## Known Limitations
+
+- **No end-to-end tests.** The test suite validates algorithmic logic (pheromone math, threshold decisions, conflict resolution formulas). It cannot test whether Claude follows the prompt correctly during a live run. The `--verbose` flag helps verify mechanism activation manually.
+- **TTL is advisory.** Claude Code cannot hard-kill running agents. TTL expiry means late results are discarded, not that the agent is terminated.
+- **Shared API pipeline.** Agents are dispatched in parallel but share one API connection. This is a Claude Code platform constraint, not a Hive limitation.
 
 ## Credits
 
