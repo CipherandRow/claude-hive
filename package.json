@@ -1,0 +1,16 @@
+{
+  "name": "claude-hive",
+  "version": "1.0.0",
+  "description": "A drop-in skill that turns Claude Code into a multi-agent swarm. 17 mechanisms from honeybee and ant colony research, backed by 149 unit tests including adversarial, stress, and A/B comparisons.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
