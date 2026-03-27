@@ -34,7 +34,7 @@ $ARGUMENTS -- The task description. Can be a high-level goal or an explicit list
 Special flags:
 - `--resume` or `--resume <checkpoint-file>` resumes from the last checkpoint.
 - `--isolate` forces git worktree isolation for all agents (default: auto-enabled in Standard/Full mode when agents write files). Each agent gets its own worktree branch, results are merged back after validation.
-- `--dry-run` outputs the full execution plan (strategy, wave structure, agent count, estimated cost) without launching any agents.
+- `--dry-run` (or `--plan`) outputs the full execution plan (strategy, wave structure, agent count, estimated cost) without launching any agents.
 - `--verbose` outputs an execution trace after each wave showing which mechanisms activated, decisions made, and timing. Useful for verifying the skill works as described.
 
 ## Step 1: Mode Detection
@@ -86,7 +86,7 @@ If `$ARGUMENTS` contains `--resume`:
 
 ## Step 5: Strategy
 
-Read `~/.claude/hive-history.jsonl` for past runs. Apply **pheromone evaporation**:
+Read `~/.claude/hive-history.jsonl` for past runs. If the file does not exist, skip pheromone scoring and use default strategy selection (no history bias). Apply **pheromone evaporation**:
 ```
 weighted_score = score * (0.95 ^ days_since_run)
 ```
@@ -365,7 +365,7 @@ Fallback (no Haiku): Enhanced word overlap with negation detection ("no damage" 
 
 ### 10a. Append to History
 
-One JSON line to `~/.claude/hive-history.jsonl`:
+One JSON line to `~/.claude/hive-history.jsonl` (create the file if it does not exist):
 ```json
 {"ts":"ISO","task_type":"qa","strategy":"wide-parallel","score":8.5,"total":12,"passed":11,"failed":1,"waves":2,"concurrency":8,"duration_ms":245000,"lessons":"stigmergy prevented 3 duplicate tasks"}
 ```

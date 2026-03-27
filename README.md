@@ -23,6 +23,7 @@ cp hive.md ~/.claude/commands/hive.md
 **Preview before running:**
 ```bash
 /hive --dry-run fix all TypeScript errors in src/
+# or: /hive --plan fix all TypeScript errors in src/
 ```
 
 **See what's happening under the hood:**
@@ -330,12 +331,13 @@ When agents write code in parallel, they can stomp on each other's files. Hive s
 - Force it with `--isolate`
 - Falls back to per-agent output files if not in a git repo
 
-## Dry Run
+## Dry Run / Plan
 
 Preview the full execution plan before committing any API calls:
 
 ```bash
 /hive --dry-run fix all TypeScript errors in src/
+# or: /hive --plan fix all TypeScript errors in src/
 ```
 
 Outputs: strategy, wave structure, agent count, estimated cost, and which mechanisms will activate. No agents are launched.
